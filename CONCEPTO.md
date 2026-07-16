@@ -271,6 +271,69 @@ El cliente puede ajustar:
 
 ---
 
+## 🏗️ Relación con proyectos existentes
+
+### No duplicamos — centralizamos
+
+R2 Autonomous es la **plataforma base**. BarOS, Legal, Marketing son
+**especialidades** que corren sobre ella. No son proyectos separados.
+
+```text
+┌─────────────────────────────────────────────────────┐
+│               R2 AUTONOMOUS (PLATAFORMA)            │
+│                                                      │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐          │
+│  │  Núcleo  │  │ Canales  │  │  Tools   │          │
+│  │ (LLM)    │  │ (WS, TG) │  │ (file,…) │          │
+│  └──────────┘  └──────────┘  └──────────┘          │
+│                                                      │
+│  ┌──────────────────────────────────────────────┐   │
+│  │            ESPECIALIDADES (plugins)           │   │
+│  │                                               │   │
+│  │  ⚖️ Legal    🧾 BarOS    📢 Marketing   🎯 ... │   │
+│  │  (JSON)      (JSON)      (JSON)      (tuyo)  │   │
+│  └──────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────┘
+```
+
+**Cada especialidad es solo un JSON + documentos.** No tiene código propio.
+Si necesita herramientas exclusivas (ej: BarOS necesita "consultar_stock"),
+esas van como plugins de herramientas en el mismo JSON.
+
+### Lo que ya existe y cómo se integra
+
+| Proyecto | Qué tiene | Cómo se integra en R2 Autonomous |
+|---|---|---|
+| **POS-NeuralForge** | FastAPI + React + SQLite | Ya no existe como proyecto aparte. Su lógica de negocio (ventas, inventario) va como especialidad BarOS + sus tools. El stack técnico se unifica. |
+| **ai-marketing-agent** | whatsapp-web.js | El sidecar de WhatsApp se mueve a R2 Autonomous como canal oficial. Marketing Agent se vuelve una especialidad. |
+| **linkedin-scraper-landing** | Landing page | Sigue siendo standalone (es una landing, no necesita el agente). |
+
+### Estructura final de repos
+
+```text
+github.com/r2aistente-cyber/
+│
+├── r2-autonomous/          ← 🏆 ÚNICO repo activo
+│   ├── backend/            ← FastAPI (lo que era BarOS + más)
+│   ├── frontend/           ← React (lo que era BarOS UI + más)
+│   ├── channels/           ← WhatsApp (lo que era ai-marketing-agent)
+│   └── specialties/        ← JSON de BarOS, Legal, Marketing
+│
+├── linkedin-scraper-landing/  ← Solo la landing (standalone)
+└── pos-neuralforge-landing/   ← Solo la landing (standalone)
+```
+
+### Para Trantor: ¿qué hacer con los repos existentes?
+
+1. **POS-NeuralForge**: migrar su backend/frontend a `r2-autonomous/`. El repo deja de recibir commits.
+2. **ai-marketing-agent**: extraer el sidecar de WhatsApp y ponerlo en `r2-autonomous/channels/`. El repo se archiva.
+3. **r2-autonomous**: desde aquí en adelante, todo nuevo desarrollo va aquí.
+4. Las landings (pos-neuralforge-landing, linkedin-scraper-landing) se quedan como están — son páginas estáticas.
+
+Esto elimina la duplicación desde el Sprint 1. No hay 3 versiones del mismo código porque solo hay un repo.
+
+---
+
 ## 🏗️ Desarrollo de R2 Autonomous — Paso a paso
 
 ### Paso 1: El núcleo — Orquestador de herramientas (semana 1)
