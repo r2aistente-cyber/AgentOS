@@ -1,6 +1,6 @@
 # 🦀 R2 Autonomous — Desktop App Concept (Tauri)
 
-> **Versión:** 1.0
+> **Versión:** 2.0
 > **Autor:** R2 PRIME (Concepto)
 > **Propósito:** Especificación de la aplicación de escritorio nativa que reemplaza la terminal.
 > **Framework:** Tauri 2.x + React + FastAPI
@@ -19,6 +19,8 @@
   ✅ Cierra con Cmd+W
   ✅ Vuelve con Cmd+Space
   ✅ Se siente nativa en Mac
+  ✅ Cambia de modelo en 1 clic
+  ✅ Nueva sesión en 1 clic
 
   ❌ No como una página web en Chrome
   ❌ No como una terminal
@@ -40,7 +42,7 @@
 │  │  - System tray icon      │  │  - /api/chat     │  │
 │  │  - Shortcut global       │◄─┤  - /api/sessions │  │
 │  │  - Notificaciones        │  │  - /api/upload   │  │
-│  │  - Input + voz           │  │                  │  │
+│  │  - Input + voz           │  │  - /api/models   │  │
 │  └──────────────────────────┘  └───────┬──────────┘  │
 │                                        │              │
 │                               ┌────────┴──────────┐  │
@@ -50,13 +52,161 @@
 └─────────────────────────────────────────────────────┘
 ```
 
-**El backend (FastAPI) arranca con la máquina.** La app de escritorio solo es la interfaz. Así cuando abres la ventana, el agente ya está vivo.
+**Nuevo endpoint:** `/api/models` → devuelve modelos disponibles y permite cambiar.
 
 ---
 
-## 3. Interfaz
+## 3. Interfaz completa
 
-### 3.1 Icono en la barra de menú
+```
+ ┌─────────────────────────────────────────────────────┐
+ │  ←  💬 Chat 1          💬 Chat 2       ＋          │  ← BARRA DE SESIONES
+ │  ═══════════════════════════════════════════════════ │
+ │                                                     │
+ │  🧠 Qwen2.5:7b  ▼  🌐 Ollama  ▼    ⚡ Nivel 3  ▼  │  ← BARRA RÁPIDA
+ │                                                     │
+ │  ┌─────────────────────────────────────────────────┐│
+ │  │  🤖 Hola Xavier, ¿en qué te ayudo?              ││
+ │  │                                                 ││
+ │  │  Tú: Dame el estado de los pagos               ││
+ │  │  🤖 Revisando...                                ││
+ │  │     🔧 Buscando Excel de pagos                 ││
+ │  │     🔧 Procesando datos                        ││
+ │  │  🤖 Aquí está el resumen:                      ││
+ │  │     • Luz: pagado ✅                           ││
+ │  │     • Internet: pendiente ⏳                   ││
+ │  │     • Próximo: 25 jul                          ││
+ │  │                                                 ││
+ │  │  Tú: Envíame el reporte a mi WhatsApp           ││
+ │  │  🤖 [Confirmar?] ¿Enviar a Xavier?              ││
+ │  │     [✓ Sí]  [✗ No]                            ││
+ │  └─────────────────────────────────────────────────┘│
+ │                                                     │
+ │  ┌───────────────────────────────────────────────┐  │
+ │  │  Escribe un mensaje...       🎤  📎  🔍  ➤  │  │
+ │  └───────────────────────────────────────────────┘  │
+ └─────────────────────────────────────────────────────┘
+```
+
+### 3.1 Barra de sesiones (arriba)
+
+```text
+←  💬 Chat 1          💬 Chat 2       ＋
+```
+
+- **Chat 1, Chat 2** = sesiones activas, como tabs en el navegador
+- **←** = volver a sesión anterior
+- **＋** = nueva sesión al instante
+- **Click en chat** = cambiar de sesión
+- **Cada sesión tiene su propio historial y contexto**
+
+Al hacer clic en ＋:
+
+```
+┌─────────────────────────────┐
+│  Nueva sesión               │
+│                             │
+│  Nombre: [Trámites legales] │
+│                             │
+│  Especialidad:              │
+│  ○ Asistente personal       │
+│  ● Legal laboral            │
+│  ○ BarOS                    │
+│                             │
+│  [Crear]  [Cancelar]        │
+└─────────────────────────────┘
+```
+
+### 3.2 Barra rápida de modelo (abajo del header)
+
+```text
+🧠 Qwen2.5:7b  ▼  🌐 Ollama  ▼    ⚡ Nivel 3  ▼
+```
+
+Cada elemento es un **dropdown inmediato**. No abres preferencias — cambias desde aquí:
+
+**Dropdown del modelo:**
+```
+┌─────────────────────────────────┐
+│  🧠 Qwen2.5:7b                  │ ← seleccionado
+│  🧠 Qwen2.5:1.5b                │
+│  🧠 llama3.2:3b                 │
+│  🧠 deepseek-coder:6.7b         │
+│  ─────────────────────          │
+│  📥 Descargar modelo nuevo...   │ ← abre selector
+└─────────────────────────────────┘
+```
+
+**Dropdown del proveedor:**
+```
+┌─────────────────────────────────┐
+│  🌐 Ollama (local)              │ ← seleccionado
+│  ☁️ OpenAI (GPT-4o)            │
+│  ☁️ Anthropic (Claude)         │
+│  🔀 OpenRouter                  │
+└─────────────────────────────────┘
+```
+
+**Al cambiar de proveedor/modelo:**
+```text
+✓ Modelo cambiado a GPT-4o
+  La sesión actual sigue igual.
+  Las nuevas respuestas usarán el nuevo modelo.
+```
+
+Sin reiniciar. Sin recargar. Inmediato.
+
+### 3.3 Indicador de tools en uso
+
+Cuando el agente está ejecutando herramientas, se ve en vivo:
+
+```text
+🤖 Revisando pagos...
+   🔧 Herramientas en uso:         ← expandible
+   ├── 📄 read_file("pagos.xlsx")  → ✅ 0.3s
+   ├── 🗄️ query_db("SELECT...")   → ✅ 0.1s
+   └── 📊 analyze(pagos)           → ⏳ procesando...
+```
+
+Así sabes exactamente qué está haciendo, sin magia.
+
+---
+
+## 4. Atajos de teclado
+
+```text
+⌘Space         → Abrir/ocultar ventana
+⌘N             → Nueva sesión
+⇧⌘N            → Nueva sesión con selector de especialidad
+⌘T             → Cambiar entre sesiones (como tabs)
+⌘W             → Cerrar ventana (sigue en background)
+⌘M             → Cambiar modelo (abre dropdown)
+⇧⌘M            → Ciclar al siguiente modelo
+⌘,             → Preferencias
+⌘↑             → Subir archivo / drag & drop
+⌘Enter         → Enviar mensaje
+⌘K             → Paleta de comandos (como VS Code)
+Esc            → Cerrar ventana / cancelar
+```
+
+**⌘K — Paleta de comandos:**
+```
+┌─────────────────────────────────────┐
+│  >                                │
+│                                     │
+│  📱 Nueva sesión                    │
+│  🧠 Cambiar modelo a GPT-4o        │
+│  🔄 Reiniciar sesión               │
+│  📂 Abrir carpeta de documentos     │
+│  ⚙️ Preferencias                    │
+│  📋 Ver auditoría                   │
+│  📤 Exportar conversación           │
+└─────────────────────────────────────┘
+```
+
+---
+
+## 5. Icono en la barra de menú
 
 ```
   ╔══════════════════════════════════════════════╗
@@ -64,141 +214,78 @@
   ╚══════════════════════════════════════════════╝
                          │
              Click →     ▼
-              ┌─────────────────────────────┐
-              │  🤖 R2 Autonomous           │
-              │  ⌘ Nuevo chat               │
-              │  ─────────────────────      │
-              │  📶 Conectado (Ollama local) │
-              │  ⚡ Activo                   │
-              │  ─────────────────────      │
-              │  ⚙️ Preferencias            │
-              │  🚪 Salir                   │
-              └─────────────────────────────┘
-```
-
-### 3.2 Ventana principal (al hacer click en "Nuevo chat" o ⌘Space)
-
-```
- ┌─────────────────────────────────────────────┐
- │  🤖 R2 Autonomous                     🗑️ ⚙️ │
- ├─────────────────────────────────────────────┤
- │                                             │
- │  🤖 Hola Xavier, ¿en qué te ayudo?         │
- │                                             │
- │  Tú: Dame el estado de los pagos           │
- │  🤖 Revisando...                           │
- │     → Buscando Excel de pagos             │
- │     → Procesando datos                     │
- │  🤖 Aquí está el resumen:                  │
- │     • Luz: pagado ✅                       │
- │     • Internet: pendiente ⏳               │
- │     • Próximo: 25 jul                      │
- │                                             │
- │  Tú: Envíame el reporte a mi WhatsApp      │
- │  🤖 [Confirmar?] ¿Enviar a Xavier?         │
- │     [Sí]  [No]                             │
- │                                             │
- │  ┌───────────────────────────────────────┐ │
- │  │  Escribe un mensaje...    🎤  📎  ➤  │ │
- │  └───────────────────────────────────────┘ │
- └─────────────────────────────────────────────┘
-```
-
-### 3.3 Atajos de teclado
-
-```text
-⌘Space         → Abrir/ocultar ventana
-⌘N             → Nuevo chat
-⌘W             → Cerrar ventana (sigue en background)
-⌘,             → Preferencias
-⌘↑             → Subir archivo
-⌘Enter         → Enviar mensaje
-Esc            → Cerrar ventana
+              ┌─────────────────────────────────┐
+              │  🤖 R2 Autonomous (3 sesiones)  │
+              │  ─────────────────────          │
+              │  💬 Chat 1 — Trámites          │
+              │  💬 Chat 2 — Consulta rápida   │
+              │  💬 Chat 3 — BarOS             │
+              │  ─────────────────────          │
+              │  ⌘N  Nueva sesión              │
+              │  ─────────────────────          │
+              │  📶 Ollama (Qwen2.5:7b)        │
+              │  ⚡ Nivel 3                     │
+              │  ─────────────────────          │
+              │  ⚙️ Preferencias               │
+              │  🚪 Salir                       │
+              └─────────────────────────────────┘
 ```
 
 ---
 
-## 4. Funcionalidades clave
+## 6. Funcionalidades clave
 
-### 4.1 Chat conversacional
+### 6.1 Chat conversacional
+- Burbujas como WhatsApp
+- Indicador de escritura
+- Tool calls visibles (expandir/colapsar)
+- Markdown renderizado (código, tablas, lists)
 
-- Como WhatsApp/Telegram, pero nativo
-- Mensajes con burbujas
-- Indicador de escritura cuando el agente piensa
-- Tool calls visibles (saber qué está haciendo)
-
-### 4.2 Voz (opcional, después)
-
-- 🎤 Botón para hablar (speech-to-text local con Whisper)
-- 🔊 Respuesta por voz (TTS local)
+### 6.2 Voz (después)
+- 🎤 Speech-to-text local (Whisper)
+- 🔊 TTS local
 - Modo manos libres
 
-### 4.3 Drag & drop de archivos
-
-```
-Arrastras un PDF a la ventana
-→ El agente lo lee automáticamente
-→ "Acabo de recibir el contrato de Juan Pérez.
-   ¿Quieres que lo revise?"
+### 6.3 Drag & drop de archivos
+```text
+Arrastras un PDF → el agente lo lee y dice:
+"Recibí el contrato. ¿Quieres que lo analice?"
 ```
 
-### 4.4 Multi-chat (tabs/sesiones)
+### 6.4 Multi-sesión
+- Tabs como navegador
+- Cada sesión con su contexto
+- Persistencia al cerrar/reabrir app
+- Sesiones compartidas entre web y WhatsApp
 
-- Varias conversaciones abiertas simultáneamente
-- Cada una con su contexto
-- Persistencia al cerrar/reabrir
-
-### 4.5 Notificaciones nativas
-
-```
-Cuando el agente termina una tarea larga:
-  🔔 Resultado listo
-     "La demanda por despido injusto
-      está generada. ¿La revisamos?"
+### 6.5 Notificaciones nativas
+```text
+Tarea larga completada → 🔔 en la barra
+"La demanda está lista. ¿La revisamos?"
 ```
 
----
-
-## 5. Preferencias (ventana de configuración)
-
-```
-┌─────────────────────────────────────────────┐
-│  ⚙️ Preferencias                    ─  ☐  ✕ │
-├─────────────────────────────────────────────┤
-│                                             │
-│  🧠 Modelo                                  │
-│  ┌─────────────────────────────────────┐    │
-│  │ Proveedor: [Ollama ▼]              │    │
-│  │ Modelo:    [qwen2.5:7b ▼]         │    │
-│  │ Host:      [http://localhost:11434]│    │
-│  └─────────────────────────────────────┘    │
-│                                             │
-│  🔐 Acceso                                  │
-│  ┌─────────────────────────────────────┐    │
-│  │ Nivel: [Autónomo (Nivel 3) ▼]      │    │
-│  │ Carpetas: [📁 ~/Trantor/DiscoE/   │    │
-│  │           [📁 ~/Documents/R2/     │    │
-│  │           [+ Agregar carpeta]     │    │
-│  └─────────────────────────────────────┘    │
-│                                             │
-│  🎤 Voz                                     │
-│  ┌─────────────────────────────────────┐    │
-│  │ ☐ Habilitar entrada por voz         │    │
-│  │ ☐ Respuesta por voz                 │    │
-│  │ Idioma: [Español ▼]                 │    │
-│  └─────────────────────────────────────┘    │
-│                                             │
-│  📢 Notificaciones                          │
-│  ┌─────────────────────────────────────┐    │
-│  │ ☐ Notificar tareas completadas      │    │
-│  │ ☐ Sonido al recibir respuesta       │    │
-│  └─────────────────────────────────────┘    │
-└─────────────────────────────────────────────┘
+### 6.6 Modo compacto
+```text
+⌘R → Reduce la ventana a solo la barra de input
+     Perfecto cuando solo quieres preguntar algo rápido
+     Sin distracciones del historial
 ```
 
 ---
 
-## 6. Stack técnico
+## 7. Preferencias
+
+```text
+Separado de la barra rápida:
+
+  La barra rápida (modelo, proveedor, nivel) es para cambios
+  momentáneos. Las preferencias son para cambios permanentes:
+  carpetas del sandbox, API keys, canales, etc.
+```
+
+---
+
+## 8. Stack técnico
 
 ```text
 Frontend (Tauri):
@@ -221,7 +308,7 @@ Comunicación:
 
 ---
 
-## 7. Logos e iconos
+## 9. Logos e iconos
 
 ```text
 App Icon:
@@ -234,7 +321,7 @@ Splash:
 
 ---
 
-## 8. Distribución
+## 10. Distribución
 
 ```text
 📦 R2 Autonomous.app
@@ -249,16 +336,34 @@ Splash:
 
 ---
 
-## 9. Checklist para Trantor
+## 11. Checklist para Trantor
 
-- [ ] Crear proyecto Tauri + React
-- [ ] System tray icon + menú
-- [ ] Ventana flotante (Chat)
+### App principal
+- [ ] Proyecto Tauri + React
+- [ ] System tray icon + menú con sesiones
 - [ ] Shortcut global (Cmd+Space)
+- [ ] Ventana flotante de chat
+
+### Sesiones
+- [ ] Barra de sesiones (tabs)
+- [ ] Nueva sesión con selector de especialidad
+- [ ] Persistencia de sesiones entre reinicios
+- [ ] Atajo ⌘N, ⇧⌘N, ⌘T
+
+### Cambio rápido de modelo
+- [ ] Barra rápida con dropdowns
+- [ ] Lista de modelos disponibles (desde Ollama API)
+- [ ] Cambio de proveedor (Ollama ↔ OpenAI etc.)
+- [ ] Descarga de modelo nuevo desde la UI
+- [ ] Atajo ⌘M, ⇧⌘M
+
+### Controles
 - [ ] Input de texto + enviar
-- [ ] Conexión a FastAPI backend
-- [ ] Stream de respuestas (WebSocket)
+- [ ] Conexión FastAPI backend
+- [ ] WebSocket streaming de respuestas
 - [ ] Drag & drop archivos
-- [ ] Preferencias (config)
+- [ ] Tool calls visibles
+- [ ] Paleta de comandos (⌘K)
+- [ ] Preferencias
 - [ ] Notificaciones nativas
-- [ ] Build para distribución
+- [ ] Build distribución
