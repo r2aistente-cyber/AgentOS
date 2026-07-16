@@ -268,3 +268,366 @@ El cliente puede ajustar:
   La personalidad correcta = adopción del producto.
   La personalidad incorrecta = el cliente no lo usa.
 ```
+
+---
+
+## 🏗️ Desarrollo de R2 Autonomous — Paso a paso
+
+### Paso 1: El núcleo — Orquestador de herramientas (semana 1)
+
+El cerebro del agente. Le da al LLM la capacidad de ejecutar acciones.
+
+```text
+🧠 ARQUITECTURA DEL NÚCLEO
+─────────────────────────────────────────
+
+                    ┌──────────────────────┐
+                    │   Usuario escribe     │
+                    │   "Genera una demanda │
+                    │   por despido injusto"│
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │   🧠 LLM (Ollama)    │
+                    │   Recibe el mensaje  │
+                    │   + herramientas     │
+                    │   disponibles        │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │   ⚙️ Tool Router     │
+                    │   Decide qué hacer:  │
+                    │                      │
+                    │   ¿Usar herramienta? │
+                    │   Sí → Ejecuta y     │
+                    │        sigue         │
+                    │   No → Responde      │
+                    │        directamente  │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+              ┌────────────────┼────────────────┐
+              │                │                │
+              ▼                ▼                ▼
+     ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+     │ 📄 File Sys  │ │ 🗄️ Database │ │ 🌐 Internet  │
+     │ Leer/escribir│ │ Consultar    │ │ Buscar info  │
+     │ documentos   │ │ BD del caso  │ │ Jurisprudencia│
+     └──────────────┘ └──────────────┘ └──────────────┘
+```
+
+**Lo que se construye:**
+```python
+# tools/orquestador.py
+class ToolOrchestrator:
+    """Permite que el LLM ejecute herramientas de forma segura."""
+    
+    tools = {
+        "read_file": leer_archivo,
+        "write_file": escribir_archivo,
+        "query_db": consultar_base_datos,
+        "search_web": buscar_internet,
+        "generate_doc": generar_documento,
+        "send_whatsapp": enviar_whatsapp,
+    }
+    
+    def ejecutar(self, comando: dict) -> str:
+        """Ejecuta una herramienta y devuelve el resultado."""
+        herramienta = comando["tool"]
+        parametros = comando["params"]
+        return self.tools[herramienta](**parametros)
+```
+
+### Paso 2: Memoria persistente (3 días)
+
+El agente recuerda quién eres, qué has hablado, qué prefieres.
+
+```text
+💾 ESTRUCTURA DE MEMORIA
+─────────────────────────────────────────
+
+  SQLite (local, simple, sin servidor)
+
+  Tablas:
+  ┌─────────────────────────────────────┐
+  │ sesiones:                           │
+  │ id, usuario_id, creada_en, activa   │
+  ├─────────────────────────────────────┤
+  │ mensajes:                           │
+  │ id, sesion_id, rol, contenido,       │
+  │ herramientas_usadas, created_at     │
+  ├─────────────────────────────────────┤
+  │ memoria_larga:                      │
+  │ id, usuario_id, clave, valor        │
+  │ "nombre_cliente" → "Juan Pérez"     │
+  │ "casos_activos" → "3"              │
+  ├─────────────────────────────────────┤
+  │ aprendizaje:                        │
+  │ id, usuario_id, feedback, contexto  │
+  │ "La última demanda que generé       │
+  │  quedó bien, pero mejorar los       │
+  │  hechos"                            │
+  └─────────────────────────────────────┘
+```
+
+### Paso 3: Interfaz web conversacional (1 semana)
+
+El chat donde el usuario habla con el agente.
+
+```text
+🖥️ COMPONENTES DE LA INTERFAZ
+─────────────────────────────────────────
+
+  Frontend (React):
+  ┌─────────────────────────────────────┐
+  │  💬 R2 Autonomous                   │
+  │                                     │
+  │  Mensajes como WhatsApp             │
+  │  ├── Usuario: "Haz una demanda"     │
+  │  ├── 🤖 "Claro, deme los datos..." │
+  │  └── Input de texto + 🎤 micrófono  │
+  │                                     │
+  │  📎 Subir archivos (PDF, DOCX)      │
+  │  📸 Subir imágenes                  │
+  │  📋 Historial de conversaciones     │
+  └─────────────────────────────────────┘
+
+  Backend (FastAPI):
+  POST /api/chat → Procesa mensaje
+  GET  /api/history → Historial
+  POST /api/upload → Subir archivo
+  GET  /api/tools → Herramientas disponibles
+```
+
+### Paso 4: Sistema de especialidades (2 días)
+
+El corazón de la versatilidad. Un mismo agente con diferentes "personalidades".
+
+```text
+🧬 ESPECIALIDADES
+─────────────────────────────────────────
+
+  ┌─────────────────────────────────────┐
+  │  R2 Autonomous Engine               │
+  │                                     │
+  │  ┌─────────────────────────────┐    │
+  │  │  🧠 System Prompt           │    │
+  │  │  (personalidad base)        │    │
+  │  └─────────────────────────────┘    │
+  │                                     │
+  │  📂 Especialidades instalables:     │
+  │                                     │
+  │  ⚖️ Legal:                          │
+  │     ├── Prompt: "Eres un abogado..."│
+  │     ├── Tools: generar_demanda,     │
+  │     │         calcular_pension      │
+  │     └── Knowledge: CST, CGP,        │
+  │                   jurisprudencia    │
+  │                                     │
+  │  🧾 BarOS:                          │
+  │     ├── Prompt: "Eres un           │
+  │     │  bartender..."               │
+  │     ├── Tools: consultar_ventas,    │
+  │     │         controlar_stock       │
+  │     └── Knowledge: productos,       │
+  │                   precios           │
+  │                                     │
+  │  📢 Marketing:                      │
+  │     ├── Prompt: "Eres un           │
+  │     │  marketer..."                │
+  │     ├── Tools: generar_post,        │
+  │     │         programar_publicacion │
+  │     └── Knowledge: perfiles,        │
+  │                   campañas          │
+  └─────────────────────────────────────┘
+```
+
+**Cada especialidad es un archivo JSON:**
+
+```json
+{
+  "id": "legal-laboral",
+  "nombre": "Asistente Legal Laboral",
+  "version": "1.0",
+  "personalidad": {
+    "tono": "formal",
+    "tuteo": "usted",
+    "humor": "ninguno",
+    "empatia": "profesional"
+  },
+  "prompt": "Eres un abogado senior con 20 años...",
+  "tools": ["generar_demanda", "calcular_pension", "consultar_terminos"],
+  "knowledge": {
+    "laws": ["cst.pdf", "cgp.pdf"],
+    "jurisprudencia": ["corte_suprema_2025.pdf"]
+  },
+  "modelo_recomendado": "qwen2.5:7b"
+}
+```
+
+**Instalar una especialidad = copiar un JSON + sus datos.**
+
+### Paso 5: Empaquetado (2 días)
+
+El agente listo para distribuir.
+
+```text
+📦 ESTRUCTURA DEL PAQUETE
+─────────────────────────────────────────
+
+📁 R2-Autonomous-v1.0/
+│
+├── 📦 Instalador
+│   ├── install.sh (macOS/Linux)
+│   ├── install.bat (Windows)
+│   └── Instalador.exe (Windows, opcional)
+│
+├── 🧠 Motor
+│   ├── r2-engine (binario compilado)
+│   ├── tools/ (herramientas base)
+│   └── memory/ (base de datos SQLite)
+│
+├── 🌐 Web
+│   ├── backend/ (FastAPI)
+│   └── frontend/ (React compilado)
+│
+├── 🧬 Especialidades
+│   ├── legal-laboral.json
+│   ├── baros.json
+│   ├── marketing.json
+│   └── personalizadas/ (para clientes)
+│
+├── 📖 Documentación
+│   ├── manual.pdf
+│   └── ejemplos/
+│
+└── ⚙️ Configuración
+    └── config.yaml
+```
+
+### Instalación en 5 pasos
+
+```text
+⬇️ PASO 1: Descargar
+  • Cliente recibe: USB o link de descarga
+  • Tamaño: ~50 MB (sin modelos)
+  • Más modelos: ~2-5 GB adicionales
+
+▶️ PASO 2: Ejecutar instalador
+  • Windows: doble clic en install.bat
+  • Mac: abrir terminal, ./install.sh
+  • Linux: ./install.sh
+
+⚙️ PASO 3: Configurar especialidad
+  • Al iniciar, pregunta:
+    "¿Qué especialidad quieres instalar?"
+    1. ⚖️ Legal (laboral, civil, familia)
+    2. 🧾 BarOS (gestión de bares)
+    3. 📢 Marketing (redes sociales)
+    4. 🎯 Personalizada (cargar archivo)
+    
+  • Si elige Legal:
+    "¿Qué ramas del derecho?"
+    ☑ Laboral
+    ☐ Civil
+    ☐ Familia
+    ☐ Penal
+
+📚 PASO 4: Cargar conocimiento
+  • "Sube los documentos de tu firma
+     para que el agente aprenda tu estilo"
+  • Arrastra: demandas, poderes, contratos
+  • La IA los procesa y aprende
+
+🚀 PASO 5: ¡Listo!
+  • "Abre http://localhost:3000
+     para empezar a hablar con tu agente"
+  • Chat funcionando en 5 minutos
+```
+
+### Configuración para cualquier especialidad
+
+```text
+🎯 CREAR UNA NUEVA ESPECIALIDAD
+─────────────────────────────────────────
+
+  Cualquier persona puede crear una especialidad nueva.
+  Solo necesita:
+
+  1. Un JSON con la personalidad (10 minutos)
+  2. Los documentos de conocimiento (los que tenga)
+  3. Definir qué herramientas necesita
+
+  Ejemplo: "Quiero un agente para mi consultorio médico"
+
+  medico.json:
+  {
+    "id": "medico-general",
+    "nombre": "Asistente Médico",
+    "personalidad": {
+      "tono": "cálido",
+      "tuteo": "usted",
+      "humor": "poco",
+      "empatia": "muy cálida"
+    },
+    "prompt": "Eres un médico con 15 años de experiencia...",
+    "tools": ["gestionar_citas", "historial_paciente"],
+    "knowledge": {
+      "protocolos": ["protocolos_medicos.pdf"]
+    }
+  }
+
+  → Copias el JSON a la carpeta especialidades/
+  → Cargas los documentos de conocimiento
+  → El agente ya sabe de medicina
+  → Sin programar, sin compilar, sin instalar nada más
+```
+
+### ¿Qué tamaños de modelo usar?
+
+```text
+🧠 RECOMENDACIONES POR ESPECIALIDAD
+─────────────────────────────────────────
+
+  ⚖️ Legal:       Qwen2.5-7B (4 GB RAM)
+                   → Suficiente para documentos legales
+                   → Preciso, confiable
+
+  🧾 BarOS:        Qwen2.5-1.5B (1.5 GB RAM)
+                   → Consultas rápidas, comandos de voz
+                   → Ligero, corre en cualquier PC
+
+  📢 Marketing:    GPT-4o / Claude (API cloud)
+                   → Contenido creativo de alta calidad
+                   → O: Qwen2.5-7B para respuestas locales
+
+  🏢 Enterprise:   Qwen2.5-14B (8 GB RAM, Mac Mini)
+                   → Mayor precisión legal
+                   → Documentos complejos
+
+  Todos los modelos son configurables.
+  El usuario elige según su hardware y necesidades.
+```
+
+### Resumen del desarrollo
+
+```text
+📋 SPRINTS DE DESARROLLO
+─────────────────────────────────────────
+
+  Sprint 1 (1 semana):   🧠 Núcleo + herramientas
+  Sprint 2 (3 días):     💾 Memoria persistente
+  Sprint 3 (1 semana):   💬 Interfaz web conversacional
+  Sprint 4 (2 días):     🧬 Sistema de especialidades
+  Sprint 5 (2 días):     📦 Empaquetado + instalador
+
+  Total: ~3-4 semanas para MVP funcional.
+
+  Después:
+  • Especialidad Legal (semana 5)
+  • Especialidad BarOS (semana 6)
+  • Especialidad Marketing (semana 7)
+  • Personalización Enterprise (semana 8)
+```
