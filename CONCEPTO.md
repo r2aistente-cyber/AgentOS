@@ -631,3 +631,197 @@ El agente listo para distribuir.
   • Especialidad Marketing (semana 7)
   • Personalización Enterprise (semana 8)
 ```
+
+---
+
+## 🔒 Seguridad — Control de acceso y prevención de riesgos
+
+Un agente con herramientas es poderoso. Un agente sin seguridad es peligroso.
+
+### Principios de seguridad
+
+```text
+🛡️ CERO CONFIANZA (Zero Trust)
+─────────────────────────────────────────
+
+  El agente no confía en nadie por defecto.
+  Cada acción se valida antes de ejecutarse.
+
+  🚫 No ejecuta comandos sin verificar
+  🚫 No accede a archivos sin permiso
+  🚫 No envía mensajes sin confirmación
+  🚫 No comparte información entre sesiones
+```
+
+### Niveles de acceso
+
+```text
+🔑 NIVELES DE PERMISOS
+─────────────────────────────────────────
+
+  NIVEL 0 — Solo conversación (seguro por defecto)
+    • El agente solo habla. No ejecuta nada.
+    • Ideal para: consultas rápidas, información general
+    • Riesgo: ninguno
+
+  NIVEL 1 — Lectura (bajo riesgo)
+    • El agente puede LEER archivos y consultar la BD
+    • NO puede escribir, modificar ni eliminar
+    • Ideal para: abogados revisando información
+    • Riesgo: bajo (fuga de información)
+
+  NIVEL 2 — Lectura + Escritura controlada (riesgo medio)
+    • El agente puede LEER y ESCRIBIR archivos
+    • Siempre en carpetas designadas (sandbox)
+    • Las escrituras requieren confirmación
+    • Ideal para: generar documentos, tomar notas
+    • Riesgo: medio (datos incorrectos)
+
+  NIVEL 3 — Acción autónoma (riesgo alto)
+    • El agente puede ejecutar comandos libremente
+    • Enviar WhatsApp, modificar BD, ejecutar scripts
+    • Cada acción se loguea y es reversible
+    • Ideal para: automatización de procesos conocidos
+    • Riesgo: alto (requiere supervisión)
+```
+
+### Sandboxing de archivos
+
+```text
+📁 SANDBOX
+─────────────────────────────────────────
+
+  El agente SOLO puede acceder a estas carpetas:
+
+  ✅ DOCUMENTOS:     /home/abogado/casos/
+  ✅ PLANTILLAS:     /home/abogado/plantillas/
+  ✅ TEMP:           /tmp/r2-temp/
+
+  ❌ NO PUEDE ACCEDER A:
+     ❌ /etc/ (configuración del sistema)
+     ❌ /usr/ (binarios del sistema)
+     ❌ ~/.ssh/ (llaves privadas)
+     ❌ C:\Windows\ (sistema operativo)
+     ❌ Cualquier carpeta fuera de las permitidas
+```
+
+### Control de acciones peligrosas
+
+```text
+⚠️ ACCIONES QUE SIEMPRE REQUIEREN CONFIRMACIÓN
+─────────────────────────────────────────
+
+  🔴 Enviar WhatsApp o email
+     → "¿Confirmas que quieres enviar este mensaje a 50 contactos?"
+
+  🔴 Modificar o eliminar documentos
+     → "¿Eliminar el archivo Demanda.pdf? No se puede deshacer."
+
+  🔴 Ejecutar comandos del sistema
+     → "¿Ejecutar script_de_migracion.sh?"
+
+  🔴 Compartir información entre usuarios
+     → "¿Compartir el caso de Juan Pérez con María García?"
+
+  🟡 Acciones que NO requieren confirmación:
+     → Leer documentos (Nivel 1)
+     → Consultar base de datos
+     → Generar borradores (no guardados)
+     → Buscar en internet
+```
+
+### Auditoría (log de todo)
+
+```text
+📋 REGISTRO DE AUDITORÍA
+─────────────────────────────────────────
+
+  Cada acción del agente queda registrada:
+
+  ┌─────────────────────────────────────────────┐
+  │ 📅 15 Jul 2026 19:30:22                     │
+  │ 👤 Usuario: Xavier                          │
+  │ 🛠️ Herramienta: generate_document           │
+  │ 📄 Acción: Creó Demanda por despido injusto │
+  │ 📁 Archivo: Casos/JuanPerez/Demanda.docx    │
+  │ ✅ Resultado: Éxito                         │
+  │ ⏱️ Duración: 3.2 segundos                   │
+  │ 🔍 UUID: a1b2c3d4-e5f6-7890                 │
+  └─────────────────────────────────────────────┘
+
+  El log es:
+  • Inmodificable (solo append)
+  • Exportable a PDF
+  • Consultable por el admin
+  • Evidencia en caso de disputa
+```
+
+### Para Enterprise (firmas de abogados)
+
+```text
+🏢 SEGURIDAD EMPRESARIAL
+─────────────────────────────────────────
+
+  🔐 CLIENTE VS AGENTE
+     • El agente sabe quién es cada usuario
+     • Un abogado NO puede ver los casos de otro
+     • Solo el admin (socio de la firma) ve todo
+
+  🏛️ CUMPLIMIENTO LEGAL
+     • Habeas Data: los datos se quedan en la firma
+     • Reserva profesional: el agente no comparte info
+     • Cadena de custodia: todo queda registrado
+     • RGPD / Ley 1581: datos personales protegidos
+
+  🔒 CIFRADO
+     • Documentos: cifrados en reposo (AES-256)
+     • Comunicaciones: localhost (sin red externa)
+     • BD: SQLite cifrada con clave de la firma
+     • Backups: cifrados antes de salir
+```
+
+### Modo avión (seguridad máxima)
+
+```text
+✈️ MODO AVIÓN
+─────────────────────────────────────────
+
+  El agente funciona SIN NINGUNA conexión externa:
+  • Sin internet
+  • Sin APIs externas
+  • Sin WhatsApp
+  • Sin búsqueda web
+
+  Solo el LLM local + los documentos de la firma.
+  Ideal para:
+  • Firmas que manejan información clasificada
+  • Casos de alto perfil
+  • Clientes que exigen confidencialidad total
+```
+
+### Panel de control de seguridad
+
+```text
+⚙️ ADMIN — Seguridad
+─────────────────────────────────────────
+
+  ┌─────────────────────────────────────────────┐
+  │  🔒 SEGURIDAD Y PERMISOS                    │
+  │                                             │
+  │  Nivel de acceso actual: [Nivel 2 ▼]       │
+  │                                             │
+  │  Usuarios:                                   │
+  │  👤 Xavier       🔑 Admin    🟢 Activo     │
+  │  👤 María        🔑 Abogado  🟢 Activo     │
+  │  👤 Carlos       🔑 Abogado  🔴 Inactivo   │
+  │  👤 Asistente    🔑 Lectura  🟢 Activo     │
+  │                                             │
+  │  Carpetas permitidas:                       │
+  │  📁 /home/abogado/casos/                    │
+  │  📁 /home/abogado/plantillas/               │
+  │  📁 /tmp/r2-temp/                           │
+  │  [➕ Agregar carpeta]                        │
+  │                                             │
+  │  🔍 Auditoría: [📥 Exportar log completo]  │
+  └─────────────────────────────────────────────┘
+```
