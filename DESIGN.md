@@ -259,86 +259,128 @@ tools_registry = {
 }
 ```
 
-### 3.3 Cómo el LLM llama herramientas
+### 3.3 Cómo el LLM llama herramientas — NATIVO (Ollama API)
 
-El prompt del sistema incluye las herramientas disponibles como JSON:
+Ollama soporta `tools` en su API de chat. El modelo sabe qué herramientas
+disponibles tiene y las llama con la estructura correcta.
 
-```text
-## Herramientas disponibles
+**El LLM no produce JSON manual.** El API de Ollama maneja todo.
 
-Responde SOLO con el formato JSON si necesitas usar una herramienta.
-No agregues texto adicional antes o después del JSON.
-
-### read_file
-{
-  "tool": "read_file",
-  "params": { "path": "demanda.txt" }
-}
-
-### write_file
-{
-  "tool": "write_file",
-  "params": { "path": "demanda.txt", "content": "...texto..." }
-}
-
-... resto de herramientas ...
-
-Reglas:
-1. Si puedes responder sin herramientas, hazlo en lenguaje natural.
-2. Si necesitas datos, usa una herramienta y espera el resultado.
-3. Puedes encadenar herramientas: el resultado de una es input de otra.
-4. Si una herramienta falla, intenta de nuevo una vez y luego informa al usuario.
-```
-
-### 3.4 Tool Orchestrator class
+#### Llamada a Ollama con tools
 
 ```python
-class ToolOrchestrator:
-    def __init__(self, user_id: str, permission_level: int):
-        self.user_id = user_id
-        self.permission_level = permission_level
-        self.tools = self._load_tools()
-    
-    def execute(self, tool_call: dict) -> dict:
-        """
-        tool_call = {
-            "tool": "read_file",
-            "params": { "path": "..." }
-        }
-        
-        Returns:
+# No parseamos JSON. Ollama lo hace.
+
+response = ollama.chat(
+    model="qwen2.5:7b",
+    messages=[
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": message},
+    ],
+    tools=[
         {
-            "success": True/False,
-            "result": "...output...",
-            "error": "...mensaje si falló..."
+            "type": "function",
+            "function": {
+                "name": "read_file",
+                "description": "Lee el contenido de un archivo",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "Ruta del archivo"
+                        }
+                    },
+                    "required": ["path"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "search_web",
+                "description": "Busca información en internet",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Términos de búsqueda"
+                        }
+                    },
+                    "required": ["query"]
+                }
+            }
         }
-        """
-        tool_name = tool_call["tool"]
-        params = tool_call["params"]
+    ]
+)
+
+# La respuesta ya viene estructurada:
+if response["message"].get("tool_calls"):
+    for tool_call in response["message"]["tool_calls"]:
+        name = tool_call["function"]["name"]
+        args = tool_call["function"]["arguments"]
+        result = orchestrator.execute(name, args)
         
-        # 1. Validar que la herramienta existe
-        tool = self.tools.get(tool_name)
-        if not tool:
-            return {"success": False, "error": f"Tool '{tool_name}' not found"}
-        
-        # 2. Validar nivel de permiso
-        if self.permission_level < tool.min_level:
-            return {"success": False, "error": "Permission level too low"}
-        
-        # 3. Validar parámetros
-        errors = self._validate_params(tool, params)
-        if errors:
-            return {"success": False, "error": errors}
-        
-        # 4. Ejecutar
-        try:
-            result = tool.handler(**params)
-            self._log_execution(tool_name, params, result)
-            return {"success": True, "result": result}
-        except Exception as e:
-            self._log_execution(tool_name, params, str(e), failed=True)
-            return {"success": False, "error": str(e)}
+        # Enviar resultado de vuelta al modelo
+        messages.append({
+            "role": "tool",
+            "content": str(result),
+            "name": name
+        })
+    
+    # El modelo responde basado en el resultado
+    final = ollama.chat(model="qwen2.5:7b", messages=messages)
 ```
+
+#### Estructura de herramientas en OpenAPI Schema
+
+```python
+def get_tools_for_level(level: int) -> list[dict]:
+    """Convierte las Tools del registry al formato que Ollama entiende."""
+    tools = []
+    for tool in registry.list():
+        if level < tool.min_level:
+            continue
+        
+        tools.append({
+            "type": "function",
+            "function": {
+                "name": tool.name,
+                "description": tool.description,
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        p.name: {
+                            "type": p.type,
+                            "description": p.description,
+                        }
+                        for p in tool.parameters
+                    },
+                    "required": [p.name for p in tool.parameters if p.required],
+                }
+            }
+        })
+    return tools
+```
+
+#### El system prompt ya no necesita el JSON manual
+
+```text
+## Capacidades
+Puedes usar herramientas para:
+- Leer y escribir archivos
+- Buscar en internet
+- Consultar la base de datos
+- Enviar WhatsApp
+
+Cuando necesites una herramienta, el sistema la manejará automáticamente.
+Solo di qué necesitas en lenguaje natural.
+
+El sistema te pasará el resultado y tú interpretas lo que significa.
+```
+
+El LLM se enfoca en pensar y razonar. La estructura de la llamada la maneja el API.
 
 ---
 
@@ -369,61 +411,83 @@ LLM_CONFIG = {
 }
 ```
 
-### 4.2 Chat handler flow
+### 4.2 Chat handler flow (con native tool calling)
 
 ```python
+def get_tools_for_specialty(specialty: Speciality, user_level: int) -> list:
+    """Convierte herramientas del registry al formato de Ollama."""
+    return [
+        tool.to_ollama_format()
+        for tool in registry.list()
+        if user_level >= tool.min_level
+        and tool.name not in specialty.config.get("deny_tools", [])
+    ]
+
+
 async def chat(session_id, message, user_id, specialty_id):
     # 1. Cargar sesión
     session = SessionManager.get(session_id, user_id)
+    user = AuthManager.get_user(user_id)
+    specialty = SpecialtyManager.get(specialty_id or user.default_specialty)
     
-    # 2. Cargar especialidad
-    specialty = SpecialtyManager.get(specialty_id)
+    # 2. Construir mensajes
+    messages = [
+        {"role": "system", "content": specialty.system_prompt},
+        *session.get_recent_messages(limit=20),
+        {"role": "user", "content": message},
+    ]
     
-    # 3. Construir prompt del sistema
-    system_prompt = build_system_prompt(specialty, session)
-    # Incluye: personalidad, herramientas disponibles, reglas
+    # 3. Obtener herramientas disponibles para este usuario+especialidad
+    tools = get_tools_for_specialty(specialty, user.level)
     
-    # 4. Obtener historial reciente
-    history = session.get_recent_messages(limit=20)
-    
-    # 5. Llamar al LLM
+    # 4. Llamar a Ollama con tools nativo
     response = await ollama.chat(
         model=specialty.model,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            *history,
-            {"role": "user", "content": message},
-        ]
+        messages=messages,
+        tools=tools,  # ← NATIVO, no parseamos nada
     )
     
-    # 6. Procesar respuesta
-    content = response["message"]["content"]
+    msg = response["message"]
     
-    # 7. ¿Es un tool call?
-    tool_result = None
-    if looks_like_tool_call(content):
-        tool_call = parse_tool_call(content)
-        tool_result = orchestrator.execute(tool_call)
+    # 5. ¿El modelo pidió usar una herramienta?
+    if msg.get("tool_calls"):
+        for tool_call in msg["tool_calls"]:
+            name = tool_call["function"]["name"]
+            args = tool_call["function"]["arguments"]
+            
+            # Ejecutar herramienta
+            result = orchestrator.execute(name, args, user)
+            
+            # Enviar resultado al modelo
+            messages.append({
+                "role": "tool",
+                "content": json.dumps(result),
+                "name": name,
+            })
         
-        # 8. Si usó herramienta, llamar al LLM de nuevo con el resultado
-        if tool_result["success"]:
-            response = await ollama.chat(
-                model=specialty.model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    *history,
-                    {"role": "user", "content": message},
-                    {"role": "assistant", "content": content},
-                    {"role": "tool", "content": str(tool_result["result"])},
-                ]
-            )
-            content = response["message"]["content"]
+        # 6. El modelo produce respuesta final con el resultado
+        response = await ollama.chat(
+            model=specialty.model,
+            messages=messages,
+            tools=tools,
+        )
+        content = response["message"]["content"]
+    else:
+        # Sin tool call — respuesta directa
+        content = msg["content"]
     
-    # 9. Guardar en BD
+    # 7. Guardar en BD
     session.add_message("user", message)
     session.add_message("assistant", content)
     
-    return {"session_id": session.id, "reply": content, "tools_used": tool_result}
+    return {
+        "session_id": session.id,
+        "reply": content,
+        "tools_used": [
+            tc["function"]["name"]
+            for tc in msg.get("tool_calls", [])
+        ]
+    }
 ```
 
 ---
