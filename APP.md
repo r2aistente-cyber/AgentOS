@@ -264,7 +264,97 @@ Tarea larga completada → 🔔 en la barra
 "La demanda está lista. ¿La revisamos?"
 ```
 
-### 6.6 Modo compacto
+### 6.6 Fallback y recuperación ante caídas
+
+El modelo puede caerse por muchas razones: Ollama crashea, se acaba la RAM,
+se cae internet (API cloud), timeout, etc. R2 tiene que manejarlo solo.
+
+#### Estrategia de fallback
+
+```text
+¿Qué falló?              → ¿Qué hace R2?
+────────────────────────────────────────────────────
+Ollama crashea           → Lo reinicia automáticamente
+                         → Si no revive en 10s, avisa
+
+Modelo se cuelga          → Timeout de 30s por generación
+  (generación infinita)   → Mata el proceso y lo reinicia
+
+Se acaba la RAM          → Baja automáticamente a un modelo
+  (OOM al cargar)         → más pequeño (qwen2.5:1.5b)
+                         → Avisa: "Poco memoria, cambié a modelo ligero"
+
+API cloud fuera          → Si hay modelos locales, fallback automático
+  (OpenAI caído)          → "OpenAI no responde, usando Ollama local"
+                         → Cuando la API vuelve, restaura el modelo original
+
+Sin internet             → Detecta y cambia a Ollama local automático
+  (modo avión forzado)    → El usuario ni se entera
+
+Timeout de herramienta   → Reintenta 1 vez
+                         → Si falla otra vez, avisa y continúa sin esa info
+
+Error de API key         → Muestra notificación
+  (key vencida)           → Pide actualizar en preferencias
+```
+
+#### Implementación
+
+```python
+class ModelManager:
+    def __init__(self):
+        self.primary = None
+        self.fallback = None  # modelo más pequeño o local
+        self.health = HealthChecker()
+    
+    async def chat(self, messages):
+        try:
+            return await self.primary.chat(messages, timeout=30)
+        except TimeoutError:
+            # Modelo colgado — reiniciar
+            await self.primary.restart()
+            # Reintentar con fallback mientras
+            return await self.fallback.chat(messages)
+        except ConnectionError:
+            # Ollama caído — reiniciar proceso
+            await self.restart_ollama()
+            return await self.fallback.chat(messages)
+        except OOMError:
+            # Sin memoria — bajar a modelo pequeño
+            await self.downgrade_model()
+            return await self.current.chat(messages)
+```
+
+#### Health checker en background
+
+```python
+class HealthChecker:
+    """Cada 30 segundos verifica que el modelo responde."""
+    
+    async def check(self):
+        while True:
+            try:
+                await self.primary.ping()
+                # ✅ Todo bien
+            except:
+                # ⚠️ Modelo caído — iniciar recuperación
+                await self.recover()
+            
+            await asyncio.sleep(30)
+```
+
+#### Indicador en la UI
+
+```text
+🧠 Qwen2.5:7b  ▼  [🔴 Caído — reiniciando...]
+🧠 Qwen2.5:7b  ▼  [⚠️ Fallback: Qwen2.5:1.5b]
+🧠 Qwen2.5:7b  ▼  [✅ Online]
+```
+
+El usuario sabe en todo momento el estado del modelo. Si algo falla,
+el agente se recupera solo o avisa qué necesita.
+
+### 6.7 Modo compacto
 ```text
 ⌘R → Reduce la ventana a solo la barra de input
      Perfecto cuando solo quieres preguntar algo rápido
