@@ -275,13 +275,77 @@ Tarea larga completada → 🔔 en la barra
 
 ## 7. Preferencias
 
-```text
-Separado de la barra rápida:
+Separado de la barra rápida — esto es para configuración permanente.
 
-  La barra rápida (modelo, proveedor, nivel) es para cambios
-  momentáneos. Las preferencias son para cambios permanentes:
-  carpetas del sandbox, API keys, canales, etc.
+### Ventana de preferencias:
+
 ```
+┌─────────────────────────────────────────────────────┐
+│  ⚙️ Preferencias                     ─  ☐  ✕      │
+├─────────────────────────────────────────────────────┤
+│  🧠 Modelo y API keys                               │
+│  ┌─────────────────────────────────────────────┐   │
+│  │ Proveedor: [Ollama ▼]                      │   │
+│  │ Modelo:    [qwen2.5:7b ▼]                 │   │
+│  │                                              │   │
+│  │ ─── Solo si usas API cloud ───              │   │
+│  │                                              │   │
+│  │ 🔑 API Key                                   │   │
+│  │ ┌─────────────────────────────────────────┐ │   │
+│  │ │ sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxx   │ │   │
+│  │ └─────────────────────────────────────────┘ │   │
+│  │ 📋 [Probar conexión]   ❌ No conectado    │   │
+│  │                                              │   │
+│  │ 💡 ¿Dónde conseguir API key?                │   │
+│  │    platform.openai.com/api-keys             │   │
+│  │                                              │   │
+│  │ 🔒 Guardada en Keychain de macOS            │   │
+│  └─────────────────────────────────────────────┘   │
+│                                                     │
+│  📱 Canales                                        │
+│  ┌─────────────────────────────────────────────┐   │
+│  │ 📱 WhatsApp: [Conectado] [Desconectar]      │   │
+│  │ 🤖 Telegram: [Añadir bot token...]          │   │
+│  │    ┌─────────────────────────────────────┐ │   │
+│  │    │ 123456:ABCdefGHIjklMNO             │ │   │
+│  │    └─────────────────────────────────────┘ │   │
+│  │    [Probar]                              │   │
+│  └─────────────────────────────────────────────┘   │
+│                                                     │
+│  🔐 Seguridad                                      │
+│  ┌─────────────────────────────────────────────┐   │
+│  │ Nivel por defecto: [3 - Autónomo ▼]        │   │
+│  │ Carpetas permitidas:                        │   │
+│  │ 📁 ~/Trantor/DiscoE/     [✕]              │   │
+│  │ 📁 ~/Documents/R2/       [✕]              │   │
+│  │ [+ Agregar carpeta]                       │   │
+│  └─────────────────────────────────────────────┘   │
+│                                                     │
+│  🎤 Voz                                            │
+│  ┌─────────────────────────────────────────────┐   │
+│  │ ☐ Entrada por voz (Whisper)                │   │
+│  │ ☐ Respuesta por voz                         │   │
+│  │ Idioma: [Español ▼]                        │   │
+│  └─────────────────────────────────────────────┘   │
+│                                                     │
+│  📢 Notificaciones                                  │
+│  ┌─────────────────────────────────────────────┐   │
+│  │ ☐ Notificar tareas completadas              │   │
+│  │ ☐ Sonido al recibir respuesta               │   │
+│  └─────────────────────────────────────────────┘   │
+│                                                     │
+│  [Restaurar defaults]    [Guardar y cerrar]        │
+└─────────────────────────────────────────────────────┘
+```
+
+**Flujo de API key:**
+1. Usuario selecciona proveedor cloud (OpenAI, Anthropic, OpenRouter)
+2. Aparece el campo 🔑 API Key
+3. Pega la key
+4. Click [Probar conexión] → valida que funciona
+5. Se guarda en el Keychain del sistema (no en texto plano)
+6. Puede cambiarla o quitarla cuando quiera
+7. Si vuelve a Ollama local, la key queda guardada pero inactiva
 
 ---
 
