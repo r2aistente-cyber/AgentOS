@@ -149,7 +149,8 @@ hub/templates/
 - [ ] Copiar y adaptar archivos de v1 a `hub/templates/`
 - [ ] `agent_main.py` completo con:
   - [ ] Carga de config.yaml (incluyendo api_key y provider)
-  - [ ] LLMAdapter multi-proveedor: Ollama, OpenAI, Anthropic, Google, Custom
+  - [ ] LLMAdapter multi-proveedor: Ollama (local), OpenAI, Anthropic (Claude), OpenCode, Google, Custom
+  - [ ] API keys vía `get_secret` (env/keychain, nunca texto plano)
   - [ ] ToolRegistry + ToolOrchestrator
   - [ ] Database + SessionManager
   - [ ] Sandbox + PermissionEnforcer + Audit
@@ -398,6 +399,28 @@ Cualquier persona puede instalar R2 Hub en 5 minutos.
 
 ---
 
+## Sprint 8 — Endurecimiento de seguridad (2 días) 🔴
+
+### Objetivo
+Los templates copian `security/` de la v1 tal cual (líneas 106-108), heredando bugs reales. Antes de lanzar hay que cerrarlos. Meta: **seguridad pragmática, no cárcel** — configurable por agente, con confirmación solo en lo peligroso.
+
+### Deuda heredada de la v1 (verificada 17 Jul 2026)
+- `exec_command` tiene whitelist que se salta trivialmente: `python -c`, `node -e`, `find -exec`, `npx *` → RCE. La validación de args deja pasar cualquier flag que empiece con `-`.
+- `exec_command` ignora el sandbox: `cat`/`cp`/`mv` leen/escriben fuera de las carpetas permitidas.
+- `requires_confirmation` está declarado en las tools pero el orquestador nunca lo aplica.
+- Nivel 3 fijo + sin auth + `host=0.0.0.0` + CORS `*` → cualquiera en la LAN tiene acceso autónomo.
+
+### Checklist
+- [ ] Rehacer validación de `exec_command` (o quitar `python -c`/`node -e`/`find`/`npx` de la whitelist)
+- [ ] Aplicar sandbox también a `exec_command` (no solo a file_tools)
+- [ ] Implementar el gate de `requires_confirmation` en el orquestador + flujo two-step en `/chat`
+- [ ] Permisos **por agente** (definidos en el wizard) en vez de niveles rígidos globales
+- [ ] Auth por agente + bind `127.0.0.1` + CORS restringido
+- [ ] Tests de seguridad: `rm -rf`/`sudo` fallan, intento de RCE falla, escape de sandbox falla, sin auth se rechaza
+- [ ] Verificar aislamiento: un agente no puede tocar la carpeta de otro
+
+---
+
 ## 🔄 Roadmap Post-MVP
 
 ```text
@@ -435,6 +458,9 @@ v2.5 — Modo multiusuario
 | 5 | 1 | R2 PRIME | 🔴 MVP |
 | 6 | 2 | WhatsApp | 🟡 |
 | 7 | 2 | Instalador | 🔴 Lanzamiento |
+| 8 | 2 | Endurecimiento de seguridad | 🔴 Pre-lanzamiento |
 
 **MVP mínimo** (Sprints 1+2+5): ~7 días → Hub + 1 agente funcional por web
-**Lanzamiento** (Sprints 1-7): ~17 días
+**Lanzamiento** (Sprints 1-8): ~19 días
+
+> ⚠️ **Sprint 8 no es opcional antes de sacar el Hub de localhost o vendérselo a un cliente.** Puede adelantarse si un agente va a exponerse a la red antes del empaquetado.
