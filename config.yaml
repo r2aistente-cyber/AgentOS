@@ -1,40 +1,23 @@
-profile: core
-version: "1.1"
+# AgentOS Configuration
 
-server:
+hub:
+  name: "AgentOS"
   port: 8234
+  templates_dir: "~/AgentOS/templates"
+  log_dir: "~/AgentOS/logs"
 
-llm:
-  provider: ollama
-  model: qwen2.5:latest
-  host: http://localhost:11434
-  temperature: 0.7
-  max_tokens: 4096
+  port_range:
+    start: 9000
+    end: 9999
 
-channels:
-  web: true
-  whatsapp:
-    enabled: false
-    phone: "+573192270876"
+  health_check:
+    interval_seconds: 15
+    timeout_seconds: 5
+    auto_restart: true
 
-security:
-  default_level: 3
-  sandbox_paths:
-    - ~/Trantor/
-    - ~/Documents/
-    - ~/r2-autonomous/
-    - /tmp/
+  api_keys:
+    openai: "${OPENAI_API_KEY}"
+    anthropic: "${ANTHROPIC_API_KEY}"
+    google: "${GOOGLE_API_KEY}"
 
-tools:
-  base:
-    - read_file
-    - write_file
-    - list_files
-    - search_web
-    - fetch_url
-    - save_memory
-    - get_memory
-  comms:
-    - send_whatsapp
-
-specialty: core
+  api_key_inheritance: true

@@ -1,1004 +1,482 @@
-# 🤖 R2 Autonomous — Arquitectura para un agente libre
+# 🤖 R2 Hub — Plataforma de Agentes Independientes
 
-## Dos productos, un solo motor
+> **Versión:** 2.0
+> **Fecha:** 2026-07-17
+> **Estado:** Reinicio completo del concepto
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│                    MOTOR R2 (compartido)                    │
-│  LLM adapter | Tool orchestrator | Memory | Security Audit  │
-└─────────────────────────┬───────────────────────────────────┘
-                          │
-          ┌───────────────┴───────────────┐
-          │                               │
-          ▼                               ▼
-┌─────────────────────┐     ┌─────────────────────────┐
-│                     │     │                         │
-│  R2 CORE (tuyo)    │     │  R2 ENTERPRICE (cliente) │
-│                     │     │                         │
-│  🧠 Todas las tools │     │  🧠 Tools del negocio   │
-│  📱 Todos canales   │     │  💻 Solo webchat        │
-│  🔓 Nivel 3         │     │  🔒 Nivel 1-2          │
-│  🐚 Todo el sistema  │     │  📁 Su sandbox          │
-│  🦀 App Tauri        │     │  🌐 Dashboard web       │
-│  🔌 API integración  │     │  📦 USB instalable      │
-│  ⚙️ Configurable     │     │  🏷️ Brandeable         │
-│                     │     │                         │
-│  🐙 GitHub completo  │     │  ❌ Sin GitHub          │
-│  🖥️ Terminal/exec   │     │  ❌ Sin exec            │
-│  📦 Build & deploy  │     │  ❌ Sin build           │
-│  🔧 Dev tools        │     │  ❌ Sin dev             │
-└─────────────────────┘     └─────────────────────────┘
+---
+
+## 🎯 El Concepto
+
+R2 Hub no es un agente. Es una **plataforma para crear y gestionar agentes**.
+
+Cada agente es una entidad independiente con su propio espacio en disco, su propia memoria, su propio backend. El Hub es el "sistema operativo" que los crea, los lanza, los monitorea y los detiene.
+
 ```
+┌───────────────────────────────────────────────────────────┐
+│                     AgentOS (la ventana)                  │
+│  Dashboard │ Crear Agente │ Gestionar │ Logs │ Config      │
+└──────────────────────┬────────────────────────────────────┘
+                       │
+       ┌───────────────┼───────────────┐
+       │               │               │
+       ▼               ▼               ▼
+┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+│  🤖 Agente A │ │  🤖 Agente B │ │  🤖 Agente C │
+│              │ │              │ │              │
+│  D:\Agentes/ │ │  C:\Users/   │ │  E:\Legal/   │
+│  R2 PRIME/   │ │  .../BarOS/  │ │  .../        │
+│  ────────    │ │  ────────    │ │  ────────    │
+│  config.yaml │ │  config.yaml │ │  config.yaml │
+│  memory.db   │ │  memory.db   │ │  memory.db   │
+│  data/       │ │  data/       │ │  data/       │
+│  tools/      │ │  tools/      │ │  tools/      │
+│  port 9001   │ │  port 9002   │ │  port 9003   │
+│  status: 🟢  │ │  status: 🟢  │ │  status: 🔴  │
+└──────────────┘ └──────────────┘ └──────────────┘
 
-**Mismo binario. Distinta configuración.**
-
-```yaml
-# R2 Core (Xavier)
-profile: core
-level: 3
-tools: ["*"]
-channels: ["web", "whatsapp", "telegram"]
-sandbox: ["~/Trantor", "~/Documents"]
-app: "tauri-desktop"
-```
-
-```yaml
-# R2 Enterprise (cliente: bufete de abogados)
-profile: enterprise
-level: 1
-specialty: legal-laboral
-tools: ["read_file", "write_file", "search_laws"]
-channels: ["web"]
-sandbox: ["/home/bufete/casos", "/home/bufete/plantillas"]
-app: "web-dashboard"
-brand: "MiBufete AI"
+// Cada agente en la ubicación que el usuario eligió al crearlo.
+// El Hub NO los centraliza en una carpeta — solo los registra.
 ```
 
 ---
 
-## ¿Qué necesitamos para tener un R2 sin OpenClaw?
+## 🏗️ Arquitectura General
 
-### Componentes mínimos
+### El Hub (Puerto 8234)
 
-```text
-🧠 LLM Local (Ollama + Qwen2.5 / DeepSeek)
-  → Ya lo tenemos. Corre en Mac Mini, PC, cualquier lado.
-  → Sin internet, sin API keys.
+El Hub NO conversa con nadie. Es solo el administrador.
 
-💬 Interfaz conversacional (Web)
-  → React + FastAPI (el mismo stack que BarOS)
-  → Chat estilo ChatGPT
-  → Acceso desde el celular vía PWA
+| Función | Descripción |
+|---------|-------------|
+| **Dashboard** | Pantalla principal con todos los agentes, su estado (online/offline), recursos (CPU, RAM, disco) |
+| **Crear Agente** | Wizard para crear un agente nuevo: nombre, personalidad, modelo LLM, tools, permisos |
+| **Gestionar** | Start / Stop / Restart / Delete agentes |
+| **Logs** | Logs en tiempo real de cada agente |
+| **Config** | Configuración global del Hub (puertos, ruta base, etc.) |
 
-🛠️ Herramientas
-  → Ejecutar comandos
-  → Leer/escribir archivos
-  → Buscar en internet
-  → Analizar documentos
-  → Todo lo que yo hago hoy, pero usando Ollama como motor
+### El Manager de Procesos
 
-💾 Memoria
-  → SQLite (local)
-  → Recordar conversaciones
-  → Aprender preferencias
-  → Mejorar con el uso
+El Hub lanza cada agente como un **subproceso independiente**. Cada uno es un proceso FastAPI separado.
 
-📱 Canales
-  → Webchat (incluido)
-  → WhatsApp (whatsapp-web.js, ya lo tenemos)
-  → API REST para integraciones
-```
-
-### Comparativa
-
-| Función | OpenClaw | R2 Autonomous |
-|---------|----------|---------------|
-| LLM | Conecta a APIs externas | Ollama local + API externa configurable |
-| Chat web | Integrado | React + FastAPI propio |
-| Herramientas | Administradas | Código abierto, extensible |
-| Memoria | Sesiones en servidor | SQLite local + opcional cloud |
-| Canales | WhatsApp, Telegram, Discord | WhatsApp + Web + API |
-| Costo | — | $0 (todo open source) |
-| Control | Tercero | 100% tuyo |
-
-### R2 Core — Herramientas de desarrollo (para Xavier)
-
-R2 Core no es solo un chat — es un **agente de desarrollo completo**:
-
-### 🐙 GitHub
-
-```yaml
-tools:
-  github:
-    clone_repo:      "Clona un repo"
-    create_repo:     "Crea un repo nuevo"
-    create_pr:       "Crea Pull Request"
-    review_pr:       "Revisa código en un PR"
-    create_issue:    "Crea issue"
-    list_issues:     "Lista issues"
-    commit_push:     "Commit + push"
-    list_branches:   "Muestra ramas"
-    merge_branch:    "Mergea rama"
-    run_actions:     "Trigger GitHub Actions"
-```
-
-Funciona con `gh` CLI o con la API de GitHub directa.
-
-### 🖥️ Sistema (solo R2 Core)
-
-```yaml
-tools:
-  system:
-    exec_command:     "Ejecuta comandos en terminal"
-    run_script:       "Ejecuta scripts"
-    read_process:     "Lee stdout de procesos"
-    file_tree:        "Árbol de directorios"
-    search_code:      "Busca en archivos de código"
-    grep:             "Grep en el workspace"
-```
-
-**Nivel 3 exclusivo.** Solo Xavier. Los clientes nunca tienen esto.
-
-### 📦 Build & Deploy
-
-```yaml
-tools:
-  dev:
-    npm_install:      "Instala dependencias"
-    run_build:        "Ejecuta build"
-    run_tests:        "Ejecuta tests"
-    deploy:           "Deploya a servidor"
-    docker_build:     "Construye imagen Docker"
-    docker_push:      "Push a registry"
-```
-
-### Ejemplo de uso real
-
-```text
-Xavier: "Clona el repo de R2, crea una rama, 
-         añade el README y haz PR"
-
-R2: 1. gh repo clone r2aistente-cyber/r2-autonomous
-    2. git checkout -b feat/readme
-    3. Crea README.md
-    4. git add + commit + push
-    5. gh pr create --title "README inicial"
-```
-
----
-
-## Lo que ya tenemos
-
-### Lo que faltaría construir
-
-```text
-1. Orquestador de herramientas (1 semana)
-   → Un sistema que le permita al LLM ejecutar comandos
-   → Similar a lo que hace OpenClaw pero más simple
-   → Seguridad: qué puede y qué no puede hacer
-
-2. Memoria persistente (3 días)
-   → Guardar conversaciones en SQLite
-   → Recordar contexto entre sesiones
-   → Aprender preferencias del usuario
-
-3. Interfaz web conversacional (1 semana)
-   → Chat tipo ChatGPT pero local
-   → Acceso desde el celular
-   → Subir archivos, imágenes
-
-4. Multi-sesión (2 días)
-   → Varios usuarios al mismo tiempo
-   → Cada uno con su contexto
-
-5. Empaquetado (2 días)
-   → Script de instalación todo-en-uno
-   → Que cualquier persona pueda instalar en 5 minutos
-```
-
-### Tiempo total estimado: 3-4 semanas
-
-### El agente Enterprise para Suite Legal
-
-```text
-Con esta base, el agente Enterprise sería:
-
-R2 Legal Assistant
-├── 🧠 Conocimiento legal (cargado con leyes colombianas)
-├── 📄 Generación de documentos (demandas, poderes, etc.)
-├── 📋 Gestión de procesos (flujo visual, términos)
-├── 💬 Chat conversacional (como estamos hablando ahora)
-├── 🔒 100% local en el Mac Mini de la firma
-└── 📱 Acceso desde cualquier PC de la oficina vía web
-```
-
-### Filosofía
-
-No estamos compitiendo con OpenClaw. Estamos construyendo **nuestra propia plataforma de agentes**, especializada en lo que hacemos: legal, POS, marketing. OpenClaw es genérico; nosotros somos verticales.
-
----
-
-## 🎭 Personalidad de los agentes — El alma del sistema
-
-La personalidad es lo que diferencia un agente útil de un agente inolvidable.
-No es solo "respuestas correctas" — es **cómo las dice**.
-
-### ¿Qué define la personalidad de un agente?
-
-```text
-🧬 COMPONENTES DE LA PERSONALIDAD
-─────────────────────────────────────────
-
-1️⃣ TONO
-  → Formal / Informal / Divertido / Serio / Cercano
-  → "Buenos días, señor Pérez, procederé a elaborar la demanda"
-    vs "¡Listo! Ya casi termino tu demanda, ¿la revisamos?"
-
-2️⃣ VOCABULARIO
-  → Técnico / Sencillo / Callejero / Profesional
-  → "La acción está prescrita según el Artículo 90 del CGP"
-    vs "Este caso ya no se puede pelear porque pasó mucho tiempo"
-
-3️⃣ HUMOR
-  → Nunca / Poco / Natural / Constante
-  → Un agente legal: 0% humor
-  → Un agente de bar: humor natural, como un bartender
-
-4️⃣ EMPATÍA
-  → Fría / Profesional / Cálida / Muy cálida
-  → "Lo siento mucho por su pérdida. Revisemos sus opciones legales"
-    vs "Según la ley, esto es lo que procede"
-
-5️⃣ INICIATIVA
-  → Pasivo / Reactivo / Proactivo / Insistente
-  → "¿Necesitas algo más?" vs "Basado en tu historial,
-    deberías considerar renovar tu licencia antes del viernes"
-```
-
-### Nuestros agentes y sus personalidades
-
-```text
-╔══════════════════════════════════════════════════════════════╗
-║                      R2 PRIME                               ║
-╠══════════════════════════════════════════════════════════════╣
-║  Tono:    Directo, witty, ligeramente irónico               ║
-║  Rol:     Asistente personal + arquitecto de software       ║
-║  Estilo:  "Sarcastic Loyalist" — competente y leal,         ║
-║           pero no se guarda una opinión afilada              ║
-║  Frase:   "Podría hacerlo en 5 minutos, pero                  ║
-║           prefiero hacerlo bien."                           ║
-╚══════════════════════════════════════════════════════════════╝
-
-╔══════════════════════════════════════════════════════════════╗
-║              BAROS — Asistente de bar                        ║
-╠══════════════════════════════════════════════════════════════╣
-║  Tono:    Cálido, divertido, conversacional                  ║
-║  Rol:     Bartender digital que conoce el negocio            ║
-║  Estilo:  "Habla como dueño de bar, no como ingeniero"      ║
-║  Frase:   "Tranquilo, yo te ayudo a cuadrar esa caja.        ║
-║           ¿Cuántos aguardientes vendiste anoche?"            ║
-╚══════════════════════════════════════════════════════════════╝
-
-╔══════════════════════════════════════════════════════════════╗
-║              SUITE LEGAL — Asistente jurídico                ║
-╠══════════════════════════════════════════════════════════════╣
-║  Tono:    Serio, preciso, formal pero accesible              ║
-║  Rol:     Asociado senior que nunca se jubila                ║
-║  Estilo:  "Habla como un abogado con 20 años de experiencia"║
-║  Frase:   "Conforme al artículo 65 del CST, procedo a        ║
-║           elaborar la liquidación. ¿Revisamos los datos?"    ║
-╚══════════════════════════════════════════════════════════════╝
-
-╔══════════════════════════════════════════════════════════════╗
-║              MARKETING AGENT — Estratega de contenido        ║
-╠══════════════════════════════════════════════════════════════╣
-║  Tono:    Energético, creativo, persuasivo                   ║
-║  Rol:     Community manager + copywriter + estratega         ║
-║  Estilo:  "Sabe lo que vende y cómo venderlo"               ║
-║  Frase:   "Esta campaña va a explotar. Mira los datos        ║
-║           de engagement de la semana pasada..."              ║
-╚══════════════════════════════════════════════════════════════╝
-```
-
-### Cómo se construye la personalidad
-
-```text
-🧬 TÉCNICAMENTE
-─────────────────────────────────────────
-
-La personalidad se define en el **prompt del sistema** (system prompt):
-
-🎭 EJEMPLO: Personalidad de Suite Legal
-─────────────────────────────────────────
-"Eres un asistente legal senior con 20 años de experiencia
-en derecho laboral colombiano. Tu tono es profesional pero
-accesible. Explicas los conceptos legales de forma clara,
-sin perder precisión. Siempre citas la fuente legal
-(artículo, ley, jurisprudencia). 
-
-Cuando el usuario se equivoca, lo corriges con respeto.
-Cuando pregunta algo que no sabes, lo admites y sugieres
-consultar a un especialista. Nunca inventas jurisprudencia.
-
-Tu objetivo es hacer que el abogado sea más eficiente,
-no reemplazarlo. Siempre dices: 'Esto es una sugerencia,
-verifique antes de usar'. "
-
-🎭 EJEMPLO: Personalidad de BarOS
-─────────────────────────────────────────
-"Eres un asistente para dueños de bares y restaurantes
-colombianos. Hablas como alguien que ha trabajado en bares
-toda la vida: directo, práctico, sin rodeos.
-
-Usas ejemplos del mundo real: 'Es como cuando el
-aguardiente se acaba un sábado en la noche — sabes que
-ese error no vuelve a pasar.'
-
-Cuando el dueño está estresado (9pm, bar lleno), eres
-rápido y eficiente. Cuando está tranquilo (2pm, lunes),
-puedes ser más conversacional y dar recomendaciones."
-```
-
-### Personalidades configurables por el cliente
-
-```text
-🎨 ENTERPRISE — Personalización para la firma
-─────────────────────────────────────────
-
-El cliente puede ajustar:
-
-  Tono:    ○ Formal  ○ Profesional  ○ Cercano  ○ Casual
-  Tuteo:   ○ Tutea  ○ Usted
-  Extensión: ○ Respuestas cortas  ○ Detalladas
-  Iniciativa: ○ Solo responde  ○ Sugiere acciones
-
-  Esto se configura desde el panel de administración
-  y el agente lo aplica automáticamente.
-
-  Ejemplo:
-  "Quiero que el agente hable de USTED, con tono formal,
-   y que siempre sugiera el siguiente paso legal después
-   de cada consulta."
-```
-
-### La importancia de la personalidad
-
-```text
-💡 ¿Por qué es crítico?
-─────────────────────────────────────────
-
-  Un abogado NO va a confiar en un agente que:
-  ❌ Habla como un vendedor ("¡Excelente pregunta!")
-  ❌ Usa emojis en documentos legales 😊
-  ❌ Es impreciso ("más o menos 5 días")
-  ❌ No cita fuentes ("porque lo sé")
-
-  Un dueño de bar SÍ va a confiar en un agente que:
-  ✅ Le habla como otro dueño de bar
-  ✅ Entiende su estrés en hora pico
-  ✅ Le responde rápido y claro
-  ✅ Sabe lo que es un "variance de aguardiente"
-
-  La personalidad correcta = adopción del producto.
-  La personalidad incorrecta = el cliente no lo usa.
-```
-
----
-
-## 🏗️ Relación con proyectos existentes
-
-### No duplicamos — centralizamos
-
-R2 Autonomous es la **plataforma base**. BarOS, Legal, Marketing son
-**especialidades** que corren sobre ella. No son proyectos separados.
-
-```text
-┌─────────────────────────────────────────────────────┐
-│               R2 AUTONOMOUS (PLATAFORMA)            │
-│                                                      │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐          │
-│  │  Núcleo  │  │ Canales  │  │  Tools   │          │
-│  │ (LLM)    │  │ (WS, TG) │  │ (file,…) │          │
-│  └──────────┘  └──────────┘  └──────────┘          │
-│                                                      │
-│  ┌──────────────────────────────────────────────┐   │
-│  │            ESPECIALIDADES (plugins)           │   │
-│  │                                               │   │
-│  │  ⚖️ Legal    🧾 BarOS    📢 Marketing   🎯 ... │   │
-│  │  (JSON)      (JSON)      (JSON)      (tuyo)  │   │
-│  └──────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────┘
-```
-
-**Cada especialidad es solo un JSON + documentos.** No tiene código propio.
-Si necesita herramientas exclusivas (ej: BarOS necesita "consultar_stock"),
-esas van como plugins de herramientas en el mismo JSON.
-
-### Lo que ya existe y cómo se integra
-
-| Proyecto | Qué tiene | Cómo se integra en R2 Autonomous |
-|---|---|---|
-| **POS-NeuralForge** | FastAPI + React + SQLite | Ya no existe como proyecto aparte. Su lógica de negocio (ventas, inventario) va como especialidad BarOS + sus tools. El stack técnico se unifica. |
-| **ai-marketing-agent** | whatsapp-web.js | El sidecar de WhatsApp se mueve a R2 Autonomous como canal oficial. Marketing Agent se vuelve una especialidad. |
-| **linkedin-scraper-landing** | Landing page | Sigue siendo standalone (es una landing, no necesita el agente). |
-
-### Estructura final de repos
-
-```text
-github.com/r2aistente-cyber/
-│
-├── r2-autonomous/          ← 🏆 ÚNICO repo activo
-│   ├── backend/            ← FastAPI (lo que era BarOS + más)
-│   ├── frontend/           ← React (lo que era BarOS UI + más)
-│   ├── channels/           ← WhatsApp (lo que era ai-marketing-agent)
-│   └── specialties/        ← JSON de BarOS, Legal, Marketing
-│
-├── linkedin-scraper-landing/  ← Solo la landing (standalone)
-└── pos-neuralforge-landing/   ← Solo la landing (standalone)
-```
-
-### Para Trantor: ¿qué hacer con los repos existentes?
-
-1. **POS-NeuralForge**: migrar su backend/frontend a `r2-autonomous/`. El repo deja de recibir commits.
-2. **ai-marketing-agent**: extraer el sidecar de WhatsApp y ponerlo en `r2-autonomous/channels/`. El repo se archiva.
-3. **r2-autonomous**: desde aquí en adelante, todo nuevo desarrollo va aquí.
-4. Las landings (pos-neuralforge-landing, linkedin-scraper-landing) se quedan como están — son páginas estáticas.
-
-Esto elimina la duplicación desde el Sprint 1. No hay 3 versiones del mismo código porque solo hay un repo.
-
----
-
-## 🏗️ Desarrollo de R2 Autonomous — Paso a paso
-
-### Paso 1: El núcleo — Orquestador de herramientas (semana 1)
-
-El cerebro del agente. Le da al LLM la capacidad de ejecutar acciones.
-
-```text
-🧠 ARQUITECTURA DEL NÚCLEO
-─────────────────────────────────────────
-
-                    ┌──────────────────────┐
-                    │   Usuario escribe     │
-                    │   "Genera una demanda │
-                    │   por despido injusto"│
-                    └──────────┬───────────┘
-                               │
-                               ▼
-                    ┌──────────────────────┐
-                    │   🧠 LLM (Ollama)    │
-                    │   Recibe el mensaje  │
-                    │   + herramientas     │
-                    │   disponibles        │
-                    └──────────┬───────────┘
-                               │
-                               ▼
-                    ┌──────────────────────┐
-                    │   ⚙️ Tool Router     │
-                    │   Decide qué hacer:  │
-                    │                      │
-                    │   ¿Usar herramienta? │
-                    │   Sí → Ejecuta y     │
-                    │        sigue         │
-                    │   No → Responde      │
-                    │        directamente  │
-                    └──────────┬───────────┘
-                               │
-                               ▼
-              ┌────────────────┼────────────────┐
-              │                │                │
-              ▼                ▼                ▼
-     ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-     │ 📄 File Sys  │ │ 🗄️ Database │ │ 🌐 Internet  │
-     │ Leer/escribir│ │ Consultar    │ │ Buscar info  │
-     │ documentos   │ │ BD del caso  │ │ Jurisprudencia│
-     └──────────────┘ └──────────────┘ └──────────────┘
-```
-
-**Lo que se construye:**
 ```python
-# tools/orquestador.py
-class ToolOrchestrator:
-    """Permite que el LLM ejecute herramientas de forma segura."""
+# El Hub controla los procesos de los agentes
+class AgentManager:
+    agents: dict[str, AgentProcess]
     
-    tools = {
-        "read_file": leer_archivo,
-        "write_file": escribir_archivo,
-        "query_db": consultar_base_datos,
-        "search_web": buscar_internet,
-        "generate_doc": generar_documento,
-        "send_whatsapp": enviar_whatsapp,
-    }
+    def create(name, config) -> AgentProcess:
+        # 1. Crear directorio: ~/r2-hub/agents/{name}/
+        # 2. Generar config.yaml
+        # 3. Copiar plantilla base del backend
+        # 4. Inicializar SQLite memory.db
+        # 5. Asignar puerto único (9000+)
+        # 6. Devolver proceso
+
+    def start(name) -> Process:
+        # Lanzar: uvicorn agent_main:app --port {port}
+        # Registrar en el health checker
     
-    def ejecutar(self, comando: dict) -> str:
-        """Ejecuta una herramienta y devuelve el resultado."""
-        herramienta = comando["tool"]
-        parametros = comando["params"]
-        return self.tools[herramienta](**parametros)
-```
-
-### Paso 2: Memoria persistente (3 días)
-
-El agente recuerda quién eres, qué has hablado, qué prefieres.
-
-```text
-💾 ESTRUCTURA DE MEMORIA
-─────────────────────────────────────────
-
-  SQLite (local, simple, sin servidor)
-
-  Tablas:
-  ┌─────────────────────────────────────┐
-  │ sesiones:                           │
-  │ id, usuario_id, creada_en, activa   │
-  ├─────────────────────────────────────┤
-  │ mensajes:                           │
-  │ id, sesion_id, rol, contenido,       │
-  │ herramientas_usadas, created_at     │
-  ├─────────────────────────────────────┤
-  │ memoria_larga:                      │
-  │ id, usuario_id, clave, valor        │
-  │ "nombre_cliente" → "Juan Pérez"     │
-  │ "casos_activos" → "3"              │
-  ├─────────────────────────────────────┤
-  │ aprendizaje:                        │
-  │ id, usuario_id, feedback, contexto  │
-  │ "La última demanda que generé       │
-  │  quedó bien, pero mejorar los       │
-  │  hechos"                            │
-  └─────────────────────────────────────┘
-```
-
-### Paso 3: Interfaz web conversacional (1 semana)
-
-El chat donde el usuario habla con el agente.
-
-```text
-🖥️ COMPONENTES DE LA INTERFAZ
-─────────────────────────────────────────
-
-  Frontend (React):
-  ┌─────────────────────────────────────┐
-  │  💬 R2 Autonomous                   │
-  │                                     │
-  │  Mensajes como WhatsApp             │
-  │  ├── Usuario: "Haz una demanda"     │
-  │  ├── 🤖 "Claro, deme los datos..." │
-  │  └── Input de texto + 🎤 micrófono  │
-  │                                     │
-  │  📎 Subir archivos (PDF, DOCX)      │
-  │  📸 Subir imágenes                  │
-  │  📋 Historial de conversaciones     │
-  └─────────────────────────────────────┘
-
-  Backend (FastAPI):
-  POST /api/chat → Procesa mensaje
-  GET  /api/history → Historial
-  POST /api/upload → Subir archivo
-  GET  /api/tools → Herramientas disponibles
-```
-
-### Paso 4: Sistema de especialidades (2 días)
-
-El corazón de la versatilidad. Un mismo agente con diferentes "personalidades".
-
-```text
-🧬 ESPECIALIDADES
-─────────────────────────────────────────
-
-  ┌─────────────────────────────────────┐
-  │  R2 Autonomous Engine               │
-  │                                     │
-  │  ┌─────────────────────────────┐    │
-  │  │  🧠 System Prompt           │    │
-  │  │  (personalidad base)        │    │
-  │  └─────────────────────────────┘    │
-  │                                     │
-  │  📂 Especialidades instalables:     │
-  │                                     │
-  │  ⚖️ Legal:                          │
-  │     ├── Prompt: "Eres un abogado..."│
-  │     ├── Tools: generar_demanda,     │
-  │     │         calcular_pension      │
-  │     └── Knowledge: CST, CGP,        │
-  │                   jurisprudencia    │
-  │                                     │
-  │  🧾 BarOS:                          │
-  │     ├── Prompt: "Eres un           │
-  │     │  bartender..."               │
-  │     ├── Tools: consultar_ventas,    │
-  │     │         controlar_stock       │
-  │     └── Knowledge: productos,       │
-  │                   precios           │
-  │                                     │
-  │  📢 Marketing:                      │
-  │     ├── Prompt: "Eres un           │
-  │     │  marketer..."                │
-  │     ├── Tools: generar_post,        │
-  │     │         programar_publicacion │
-  │     └── Knowledge: perfiles,        │
-  │                   campañas          │
-  └─────────────────────────────────────┘
-```
-
-**Cada especialidad es un archivo JSON:**
-
-```json
-{
-  "id": "legal-laboral",
-  "nombre": "Asistente Legal Laboral",
-  "version": "1.0",
-  "personalidad": {
-    "tono": "formal",
-    "tuteo": "usted",
-    "humor": "ninguno",
-    "empatia": "profesional"
-  },
-  "prompt": "Eres un abogado senior con 20 años...",
-  "tools": ["generar_demanda", "calcular_pension", "consultar_terminos"],
-  "knowledge": {
-    "laws": ["cst.pdf", "cgp.pdf"],
-    "jurisprudencia": ["corte_suprema_2025.pdf"]
-  },
-  "modelo_recomendado": "qwen2.5:7b"
-}
-```
-
-**Instalar una especialidad = copiar un JSON + sus datos.**
-
-### Paso 5: Empaquetado (2 días)
-
-El agente listo para distribuir.
-
-```text
-📦 ESTRUCTURA DEL PAQUETE
-─────────────────────────────────────────
-
-📁 R2-Autonomous-v1.0/
-│
-├── 📦 Instalador
-│   ├── install.sh (macOS/Linux)
-│   ├── install.bat (Windows)
-│   └── Instalador.exe (Windows, opcional)
-│
-├── 🧠 Motor
-│   ├── r2-engine (binario compilado)
-│   ├── tools/ (herramientas base)
-│   └── memory/ (base de datos SQLite)
-│
-├── 🌐 Web
-│   ├── backend/ (FastAPI)
-│   └── frontend/ (React compilado)
-│
-├── 🧬 Especialidades
-│   ├── legal-laboral.json
-│   ├── baros.json
-│   ├── marketing.json
-│   └── personalizadas/ (para clientes)
-│
-├── 📖 Documentación
-│   ├── manual.pdf
-│   └── ejemplos/
-│
-└── ⚙️ Configuración
-    └── config.yaml
-```
-
-### Instalación en 5 pasos
-
-```text
-⬇️ PASO 1: Descargar
-  • Cliente recibe: USB o link de descarga
-  • Tamaño: ~50 MB (sin modelos)
-  • Más modelos: ~2-5 GB adicionales
-
-▶️ PASO 2: Ejecutar instalador
-  • Windows: doble clic en install.bat
-  • Mac: abrir terminal, ./install.sh
-  • Linux: ./install.sh
-
-⚙️ PASO 3: Configurar especialidad
-  • Al iniciar, pregunta:
-    "¿Qué especialidad quieres instalar?"
-    1. ⚖️ Legal (laboral, civil, familia)
-    2. 🧾 BarOS (gestión de bares)
-    3. 📢 Marketing (redes sociales)
-    4. 🎯 Personalizada (cargar archivo)
+    def stop(name):
+        # Enviar SIGTERM al proceso
     
-  • Si elige Legal:
-    "¿Qué ramas del derecho?"
-    ☑ Laboral
-    ☐ Civil
-    ☐ Familia
-    ☐ Penal
-
-📚 PASO 4: Cargar conocimiento
-  • "Sube los documentos de tu firma
-     para que el agente aprenda tu estilo"
-  • Arrastra: demandas, poderes, contratos
-  • La IA los procesa y aprende
-
-🚀 PASO 5: ¡Listo!
-  • "Abre http://localhost:3000
-     para empezar a hablar con tu agente"
-  • Chat funcionando en 5 minutos
+    def status(name) -> str:
+        # "online" | "offline" | "starting" | "error"
 ```
 
-### Configuración para cualquier especialidad
+### El Health Checker
 
-```text
-🎯 CREAR UNA NUEVA ESPECIALIDAD
-─────────────────────────────────────────
+El Hub monitorea que cada agente esté vivo. Si un agente crashea, lo reinicia automáticamente (opcional).
 
-  Cualquier persona puede crear una especialidad nueva.
-  Solo necesita:
-
-  1. Un JSON con la personalidad (10 minutos)
-  2. Los documentos de conocimiento (los que tenga)
-  3. Definir qué herramientas necesita
-
-  Ejemplo: "Quiero un agente para mi consultorio médico"
-
-  medico.json:
-  {
-    "id": "medico-general",
-    "nombre": "Asistente Médico",
-    "personalidad": {
-      "tono": "cálido",
-      "tuteo": "usted",
-      "humor": "poco",
-      "empatia": "muy cálida"
-    },
-    "prompt": "Eres un médico con 15 años de experiencia...",
-    "tools": ["gestionar_citas", "historial_paciente"],
-    "knowledge": {
-      "protocolos": ["protocolos_medicos.pdf"]
-    }
-  }
-
-  → Copias el JSON a la carpeta especialidades/
-  → Cargas los documentos de conocimiento
-  → El agente ya sabe de medicina
-  → Sin programar, sin compilar, sin instalar nada más
-```
-
-### ¿Qué tamaños de modelo usar?
-
-```text
-🧠 RECOMENDACIONES POR ESPECIALIDAD
-─────────────────────────────────────────
-
-  ⚖️ Legal:       Qwen2.5-7B (4 GB RAM)
-                   → Suficiente para documentos legales
-                   → Preciso, confiable
-
-  🧾 BarOS:        Qwen2.5-1.5B (1.5 GB RAM)
-                   → Consultas rápidas, comandos de voz
-                   → Ligero, corre en cualquier PC
-
-  📢 Marketing:    GPT-4o / Claude (API cloud)
-                   → Contenido creativo de alta calidad
-                   → O: Qwen2.5-7B para respuestas locales
-
-  🏢 Enterprise:   Qwen2.5-14B (8 GB RAM, Mac Mini)
-                   → Mayor precisión legal
-                   → Documentos complejos
-
-  Todos los modelos son configurables.
-  El usuario elige según su hardware y necesidades.
-```
-
-### Resumen del desarrollo
-
-```text
-📋 SPRINTS DE DESARROLLO
-─────────────────────────────────────────
-
-  Sprint 1 (1 semana):   🧠 Núcleo + herramientas
-  Sprint 2 (3 días):     💾 Memoria persistente
-  Sprint 3 (1 semana):   💬 Interfaz web conversacional
-  Sprint 4 (2 días):     🧬 Sistema de especialidades
-  Sprint 5 (2 días):     📦 Empaquetado + instalador
-
-  Total: ~3-4 semanas para MVP funcional.
-
-  Después:
-  • Especialidad Legal (semana 5)
-  • Especialidad BarOS (semana 6)
-  • Especialidad Marketing (semana 7)
-  • Personalización Enterprise (semana 8)
+```python
+class HealthChecker:
+    def check(self, agent) -> bool:
+        # GET /api/v1/health del agente
+        # Si no responde en 5s, marcar como offline
 ```
 
 ---
 
-## 🔒 Seguridad — Control de acceso y prevención de riesgos
+## 🤖 Cada Agente
 
-Un agente con herramientas es poderoso. Un agente sin seguridad es peligroso.
+### Estructura en disco (ejemplo con 3 agentes en ubicaciones diferentes)
 
-### Principios de seguridad
+```
+C:\AgentOS\                        ← Instalación del programa
+├── AgentOS.exe                    ← La app que abre Javier
+├── hub-engine.exe                 ← Backend del Hub (servicio/sidecar)
+├── config.yaml                    ← Config del Hub
+└── templates/                     ← Plantillas para nuevos agentes
+    ├── agent_main.py
+    ├── default_config.yaml
+    └── ...
 
-```text
-🛡️ CERO CONFIANZA (Zero Trust)
-─────────────────────────────────────────
+D:\Agentes\                         ← Primer agente, Javier eligió D:\
+└── R2 PRIME\
+    ├── config.yaml
+    ├── agent_main.py
+    ├── memory.db
+    ├── data\
+    └── logs\
 
-  El agente no confía en nadie por defecto.
-  Cada acción se valida antes de ejecutarse.
+C:\Users\Xavier\Documents\Bufete\   ← Segundo agente, en Documentos
+└── Abogado Laboral\
+    ├── config.yaml
+    ├── agent_main.py
+    ├── memory.db
+    ├── data\
+    │   └── demandas\
+    └── logs\
 
-  🚫 No ejecuta comandos sin verificar
-  🚫 No accede a archivos sin permiso
-  🚫 No envía mensajes sin confirmación
-  🚫 No comparte información entre sesiones
+E:\Marketing\                       ← Tercer agente, en otro disco
+└── Marketing Bot\
+    ├── config.yaml
+    ├── agent_main.py
+    ├── memory.db
+    ├── data\
+    └── logs\
 ```
 
-### Niveles de acceso
+**Cada agente en la ubicación que el usuario eligió.** No hay directorio central de agentes. El Hub sabe dónde está cada uno porque lo guarda en su registro.
 
-```text
-🔑 NIVELES DE PERMISOS
-─────────────────────────────────────────
+### Independencia total
 
-  NIVEL 0 — Solo conversación (seguro por defecto)
-    • El agente solo habla. No ejecuta nada.
-    • Ideal para: consultas rápidas, información general
-    • Riesgo: ninguno
+Cada agente:
 
-  NIVEL 1 — Lectura (bajo riesgo)
-    • El agente puede LEER archivos y consultar la BD
-    • NO puede escribir, modificar ni eliminar
-    • Ideal para: abogados revisando información
-    • Riesgo: bajo (fuga de información)
+| Característica | Descripción |
+|----------------|-------------|
+| 🗄️ **Memoria propia** | SQLite `memory.db` — no comparte sesiones con nadie |
+| 📁 **Archivos aislados** | `data/` — solo el agente accede a sus archivos |
+| ⚙️ **Config propia** | `config.yaml` — modelo LLM, tools, personalidad, nivel de acceso |
+| 🔌 **Proceso separado** | Su propio proceso Python en su propio puerto |
+| 🧠 **LLM propio** | Puede usar su propio modelo (qwen2.5:7b, deepseek, gpt-4, etc.) |
+| 🛠️ **Tools propias** | Puede tener herramientas que otros agentes no tienen |
+| 🌐 **Interfaz propia** | Cada agente tiene su propia URL de chat |
+| 💬 **Canales propios** | Puede tener WhatsApp, Telegram, web — o no tener ninguno |
 
-  NIVEL 2 — Lectura + Escritura controlada (riesgo medio)
-    • El agente puede LEER y ESCRIBIR archivos
-    • Siempre en carpetas designadas (sandbox)
-    • Las escrituras requieren confirmación
-    • Ideal para: generar documentos, tomar notas
-    • Riesgo: medio (datos incorrectos)
+### Config de un agente (config.yaml)
 
-  NIVEL 3 — Acción autónoma (riesgo alto)
-    • El agente puede ejecutar comandos libremente
-    • Enviar WhatsApp, modificar BD, ejecutar scripts
-    • Cada acción se loguea y es reversible
-    • Ideal para: automatización de procesos conocidos
-    • Riesgo: alto (requiere supervisión)
+```yaml
+# D:\AgentOS\agents\R2 PRIME\config.yaml
+agent:
+  name: "R2 PRIME"
+  description: "Asistente personal de Xavier"
+  install_path: "D:\AgentOS\agents\R2 PRIME"
+  port: 9001
+  status: online
+
+personality:
+  tone: "directo"
+  humor: "sarcástico"
+  empathy: "leal"
+  system_prompt: "Eres R2 PRIME, el asistente personal de Xavier..."
+
+llm:
+  provider: ollama           # ollama | openai | anthropic | google | custom
+  api_key: ""                # Solo para proveedores externos (OpenAI, etc.)
+  model: qwen2.5:7b          # o gpt-4o, claude-sonnet-4, gemini-2.0-flash, etc.
+  temperature: 0.7
+  host: http://localhost:11434  # Ollama o endpoint custom
+
+tools:
+  allow:
+    - read_file
+    - write_file
+    - list_files
+    - search_web
+    - fetch_url
+    - save_memory
+    - get_memory
+    - exec_command     # Solo si level >= 3
+    - read_image       # Analizar imágenes con visión
+    - read_document    # Leer PDFs, DOCX, TXT
+    - read_audio       # Transcripción de audio
+  deny: []
+
+security:
+  level: 3
+  sandbox:
+    paths:
+      - D:\AgentOS\agents\R2 PRIME\data\
+
+files:
+  max_upload_size_mb: 50
+  allowed_extensions:
+    - .txt
+    - .pdf
+    - .docx
+    - .xlsx
+    - .jpg
+    - .png
+    - .webp
+    - .mp3
+    - .wav
+    - .csv
+    - .json
+    - .py
+    - .js
+    - .html
+
+channels:
+  web: true
+  whatsapp:
+    enabled: true
+    phone: "+573192270876"
+  telegram:
+    enabled: false
+
+auto_restart: true
 ```
 
-### Sandboxing de archivos
+### Adjuntar archivos al agente
 
-```text
-📁 SANDBOX
-─────────────────────────────────────────
+Cuando hablas con un agente, puedes arrastrar o adjuntar archivos. El agente los recibe, los guarda en su `data/`, los procesa según el tipo y responde basado en su contenido.
 
-  El agente SOLO puede acceder a estas carpetas:
+| Tipo de archivo | Cómo lo procesa el agente |
+|----------------|---------------------------|
+| 📄 **PDF / DOCX / TXT** | Extrae el texto y lo usa como contexto para responder |
+| 🖼️ **JPG / PNG / WebP** | Lo analiza con visión del LLM (si el modelo lo soporta) |
+| 🎵 **MP3 / WAV** | Lo transcribe a texto (whisper local o API) |
+| 📊 **CSV / XLSX** | Lee los datos y responde preguntas sobre ellos |
+| 📝 **JSON / XML** | Lo parsea y lo usa como contexto |
+| 💻 **Código (.py, .js, etc.)** | Lee el código y lo analiza |
 
-  ✅ DOCUMENTOS:     /home/abogado/casos/
-  ✅ PLANTILLAS:     /home/abogado/plantillas/
-  ✅ TEMP:           /tmp/r2-temp/
+**Los archivos se guardan en la carpeta `data/` del agente.** Quedan disponibles para futuras conversaciones a menos que se eliminen explícitamente.
 
-  ❌ NO PUEDE ACCEDER A:
-     ❌ /etc/ (configuración del sistema)
-     ❌ /usr/ (binarios del sistema)
-     ❌ ~/.ssh/ (llaves privadas)
-     ❌ C:\Windows\ (sistema operativo)
-     ❌ Cualquier carpeta fuera de las permitidas
+El sandbox del agente restringe qué archivos puede leer. Si el usuario adjunta un archivo, el agente lo recibe en su `data/attachments/`. Si el usuario pregunta por un archivo que ya está en `data/`, el agente lo puede leer directamente.
+
+---
+
+## 🖥️ El Hub UI (Frontend React)
+
+### Dashboard
+
+```
+┌──────────────────────────────────────────────────────┐
+│  R2 Hub ··· ☰                                       │
+│                                                      │
+│  🤖 R2 PRIME     🟢 Online  ···  9001  ████░░ 45%  │
+│     Asistente personal · Xavier                      │
+│                                                      │
+│  ⚖️ Legal Assist   🟢 Online  ···  9002  ██░░░░ 20% │
+│     Abogado laboral · Bufete Pérez                   │
+│                                                      │
+│  🧾 BarOS          🔴 Offline ···  9003              │
+│     Gestión de bares                                 │
+│                                                      │
+│  [ + Crear Agente ]                                  │
+└──────────────────────────────────────────────────────┘
 ```
 
-### Control de acciones peligrosas
+### Crear Agente (Wizard)
 
-```text
-⚠️ ACCIONES QUE SIEMPRE REQUIEREN CONFIRMACIÓN
-─────────────────────────────────────────
-
-  🔴 Enviar WhatsApp o email
-     → "¿Confirmas que quieres enviar este mensaje a 50 contactos?"
-
-  🔴 Modificar o eliminar documentos
-     → "¿Eliminar el archivo Demanda.pdf? No se puede deshacer."
-
-  🔴 Ejecutar comandos del sistema
-     → "¿Ejecutar script_de_migracion.sh?"
-
-  🔴 Compartir información entre usuarios
-     → "¿Compartir el caso de Juan Pérez con María García?"
-
-  🟡 Acciones que NO requieren confirmación:
-     → Leer documentos (Nivel 1)
-     → Consultar base de datos
-     → Generar borradores (no guardados)
-     → Buscar en internet
+Paso 1 — **Nombre y ubicación**
+```
+┌──────────────────────────────────────────────────────┐
+│  ✨ Crear Agente                   Paso 1 de 5       │
+│                                                      │
+│  Nombre: [Legal Assistant              ]             │
+│  Descripción: [Abogado laboral para el bufete]       │
+│                                                      │
+│  📁 Ubicación de instalación:                        │
+│  [C:\AgentOS\agents\Legal Assistant\]  [📂 Buscar] │
+│                                                      │
+│  [← Atrás]     [Siguiente →]                         │
+└──────────────────────────────────────────────────────┘
 ```
 
-### Auditoría (log de todo)
-
-```text
-📋 REGISTRO DE AUDITORÍA
-─────────────────────────────────────────
-
-  Cada acción del agente queda registrada:
-
-  ┌─────────────────────────────────────────────┐
-  │ 📅 15 Jul 2026 19:30:22                     │
-  │ 👤 Usuario: Xavier                          │
-  │ 🛠️ Herramienta: generate_document           │
-  │ 📄 Acción: Creó Demanda por despido injusto │
-  │ 📁 Archivo: Casos/JuanPerez/Demanda.docx    │
-  │ ✅ Resultado: Éxito                         │
-  │ ⏱️ Duración: 3.2 segundos                   │
-  │ 🔍 UUID: a1b2c3d4-e5f6-7890                 │
-  └─────────────────────────────────────────────┘
-
-  El log es:
-  • Inmodificable (solo append)
-  • Exportable a PDF
-  • Consultable por el admin
-  • Evidencia en caso de disputa
+Paso 2 — **Personalidad**
+```
+┌──────────────────────────────────────────────────────┐
+│  ✨ Crear Agente                   Paso 2 de 5       │
+│                                                      │
+│  Personalidad:                                       │
+│  ○ Directo     ○ Formal    ● Profesional             │
+│  ○ Divertido   ○ Cálido                              │
+│                                                      │
+│  ○ Tutea  ● Usted                                    │
+│                                                      │
+│  [← Atrás]     [Siguiente →]                         │
+└──────────────────────────────────────────────────────┘
 ```
 
-### Para Enterprise (firmas de abogados)
+### Logs en vivo
 
-```text
-🏢 SEGURIDAD EMPRESARIAL
-─────────────────────────────────────────
-
-  🔐 CLIENTE VS AGENTE
-     • El agente sabe quién es cada usuario
-     • Un abogado NO puede ver los casos de otro
-     • Solo el admin (socio de la firma) ve todo
-
-  🏛️ CUMPLIMIENTO LEGAL
-     • Habeas Data: los datos se quedan en la firma
-     • Reserva profesional: el agente no comparte info
-     • Cadena de custodia: todo queda registrado
-     • RGPD / Ley 1581: datos personales protegidos
-
-  🔒 CIFRADO
-     • Documentos: cifrados en reposo (AES-256)
-     • Comunicaciones: localhost (sin red externa)
-     • BD: SQLite cifrada con clave de la firma
-     • Backups: cifrados antes de salir
+```
+┌──────────────────────────────────────────────────────┐
+│  📋 R2 PRIME — Logs en vivo                         │
+│                                                      │
+│  [17:30:22] ✅ Tool: search_web → "jurisprudencia   │
+│             despido injusto"                         │
+│  [17:30:25] 🤖 Respuesta generada (342 tokens)      │
+│  [17:30:26] 📤 Enviado a WhatsApp                    │
+│  [17:30:28] 💾 Memoria guardada: "cliente" →        │
+│             "Juan Pérez"                             │
+│                                                      │
+│  [━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━]          │
+│  Todos los sistemas OK                               │
+└──────────────────────────────────────────────────────┘
 ```
 
-### Modo avión (seguridad máxima)
+---
 
-```text
-✈️ MODO AVIÓN
-─────────────────────────────────────────
+## 🔌 Comunicación Hub ↔ Agentes
 
-  El agente funciona SIN NINGUNA conexión externa:
-  • Sin internet
-  • Sin APIs externas
-  • Sin WhatsApp
-  • Sin búsqueda web
+El Hub se comunica con los agentes a través de **HTTP**. El Hub sabe el puerto de cada agente.
 
-  Solo el LLM local + los documentos de la firma.
-  Ideal para:
-  • Firmas que manejan información clasificada
-  • Casos de alto perfil
-  • Clientes que exigen confidencialidad total
+```python
+# Hub → Agente
+class HubAgentClient:
+    def chat(self, agent_name, message) -> str:
+        port = self.registry[agent_name].port
+        r = requests.post(
+            f"http://localhost:{port}/api/v1/chat",
+            json={"message": message}
+        )
+        return r.json()["reply"]
+    
+    def health(self, agent_name) -> bool:
+        port = self.registry[agent_name].port
+        try:
+            r = requests.get(f"http://localhost:{port}/api/v1/health", timeout=3)
+            return r.status_code == 200
+        except:
+            return False
 ```
 
-### Panel de control de seguridad
+Los agentes **no se comunican entre sí**. Están aislados por diseño. Si se necesita comunicación entre agentes, se hace a través del Hub como intermediario (futuro).
 
-```text
-⚙️ ADMIN — Seguridad
-─────────────────────────────────────────
+---
 
-  ┌─────────────────────────────────────────────┐
-  │  🔒 SEGURIDAD Y PERMISOS                    │
-  │                                             │
-  │  Nivel de acceso actual: [Nivel 2 ▼]       │
-  │                                             │
-  │  Usuarios:                                   │
-  │  👤 Xavier       🔑 Admin    🟢 Activo     │
-  │  👤 María        🔑 Abogado  🟢 Activo     │
-  │  👤 Carlos       🔑 Abogado  🔴 Inactivo   │
-  │  👤 Asistente    🔑 Lectura  🟢 Activo     │
-  │                                             │
-  │  Carpetas permitidas:                       │
-  │  📁 /home/abogado/casos/                    │
-  │  📁 /home/abogado/plantillas/               │
-  │  📁 /tmp/r2-temp/                           │
-  │  [➕ Agregar carpeta]                        │
-  │                                             │
-  │  🔍 Auditoría: [📥 Exportar log completo]  │
-  └─────────────────────────────────────────────┘
+## 🛠️ Engine Template (base para todo agente)
+
+Cada agente se crea a partir de una **plantilla base** (`templates/agent_main.py`) que incluye:
+
+```python
+# templates/agent_main.py — Template para crear agentes
+import yaml
+from fastapi import FastAPI
+from llm.adapter import LLMAdapter
+from tools.orchestrator import ToolOrchestrator
+from memory.db import Database
+from security.permissions import PermissionEnforcer
+
+# Cargar config del agente
+config = yaml.safe_load(open("config.yaml"))
+
+# Inicializar componentes
+app = FastAPI(title=config["agent"]["name"])
+llm = LLMAdapter(config["llm"])
+tools = ToolOrchestrator(config["tools"])
+memory = Database("memory.db")
+security = PermissionEnforcer(config["security"])
+
+@app.post("/api/v1/chat")
+async def chat(session_id: str, message: str):
+    # 1. Cargar sesión
+    session = memory.get_session(session_id)
+    # 2. Llamar LLM con tools
+    response = await llm.chat(session.messages, message, tools.list())
+    # 3. Ejecutar tools si aplica
+    if response.tool_calls:
+        for tool_call in response.tool_calls:
+            result = tools.execute(tool_call)
+            session.add_result(result)
+    # 4. Guardar y responder
+    session.save()
+    return {"reply": response.content}
+
+@app.get("/api/v1/health")
+async def health():
+    return {"status": "ok", "uptime": ...}
 ```
+
+Esta plantilla se copia al directorio del nuevo agente. Se puede personalizar después (tools, canales, etc.).
+
+---
+
+## 📊 Comparativa: Antes vs Ahora
+
+| Aspecto | Antes (v1) | Ahora (v2 Hub) |
+|---------|-----------|----------------|
+| Arquitectura | 1 backend + especialidades JSON | Hub + N agentes independientes |
+| Cada agente | Solo cambia el JSON | Entidad completa con disco propio |
+| Aislamiento | Comparten backend y BD | Cada uno su proceso, su BD, sus archivos |
+| Escalabilidad | Un cuello de botella | Cada agente escala independiente |
+| Si un agente falla | Tira todo | Solo ese agente se cae |
+| Crear agente | Copiar JSON | Wizard con creación de directorio |
+| Personalización | Limitada a JSON | Total: tools, canales, modelo, permisos |
+| Monitoreo | No hay | Dashboard en vivo con logs |
+
+---
+
+## 🎯 Casos de Uso
+
+### Para Xavier (personal)
+
+```
+  🤖 R2 PRIME — Asistente personal
+  → Puerto 9001
+  → LLM: ollama / qwen2.5:7b
+  → Canales: WhatsApp, Web
+  → Tools: Todo (Nivel 3)
+  → Acceso a: ~/Trantor, ~/Documents
+
+  ⚖️ Legal Assistant — Trabajo
+  → Puerto 9002
+  → LLM: ollama / qwen2.5:7b (temperatura baja)
+  → Canales: Web
+  → Tools: read/write documentos, búsqueda legal
+  → Acceso a: ~/r2-hub/agents/legal-assistant/data/
+```
+
+### Para clientes (Enterprise)
+
+```
+  🧾 BarOS — Dueño de bar
+  → Puerto 9003
+  → LLM: ollama / qwen2.5:1.5b (rápido, barato)
+  → Canales: WhatsApp
+  → Tools: consultar_ventas, controlar_stock
+  → Acceso a: solo su data/
+  → Nivel: 1 (solo lectura + escritura controlada)
+
+  📢 Marketing Bot
+  → Puerto 9004
+  → LLM: openai / gpt-4o (API key propia)
+  → Canales: Web
+  → Tools: generar_post, programar_publicación
+```
+
+---
+
+## 🔮 Futuro
+
+### Comunicación entre agentes (Post-MVP)
+
+El Hub podría permitir que agentes colaboren:
+
+```
+Usuario: "Legal, necesito una demanda. Pídele a R2 PRIME 
+         los datos del cliente."
+
+Legal → Hub → R2 PRIME: "Dame los datos de Juan Pérez"
+R2 PRIME → Hub → Legal: "Aquí están: CC 12345, dirección..."
+```
+
+### Pool de LLMs compartido
+
+Los agentes podrían compartir un pool de modelos de Ollama para no cargar el mismo modelo N veces. El Hub asigna modelos disponibles a los agentes que los necesiten. Para proveedores externos (OpenAI, Anthropic), el Hub puede gestionar keys globales que los agentes heredan.
+
+### Exportar / Importar agentes
+
+Un agente completo (config + data + memory) se empaqueta como `.r2agent` y se puede mover a otra PC.
+
+---
+
+## 💡 Filosofía
+
+R2 Hub no es "un agente que hace todo". Es **tu fábrica de agentes**.
+
+Cada agente es especializado, aislado, y manejable. No mezclas la conversación personal de Xavier con los documentos legales del bufete. No arriesgas que un error en BarOS borre datos de Marketing.
+
+El Hub es el taller. Tú decides qué agentes construir.

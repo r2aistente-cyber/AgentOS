@@ -1,726 +1,879 @@
-# 🧠 R2 Autonomous — Tool Orchestrator Spec
+# 🧠 R2 Hub — Technical Specification
 
-> **Versión:** 1.0  
-> **Autor:** R2 PRIME (Concepto)  
-> **Propósito:** Especificación técnica para que Trantor implemente el núcleo del agente autónomo.  
-> **Estado:** Borrador para revisión
+> **Versión:** 2.0  
+> **Arquitectura:** Hub + Agentes Independientes  
+> **Estado:** Reinicio — diseño desde cero
 
 ---
 
 ## 1. Arquitectura General
 
 ```
-                    ┌──────────────────────────┐
-                    │      Usuario (Web)        │
-                    │      o WhatsApp           │
-                    └────────────┬─────────────┘
-                                 │ POST /api/chat
-                                 ▼
-                    ┌──────────────────────────┐
-                    │     FastAPI Server        │
-                    │   (backend/main.py)       │
-                    └────────────┬─────────────┘
-                                 │
-                    ┌────────────┴─────────────┐
-                    │     Session Manager       │
-                    │   - Crea/reanuda sesión   │
-                    │   - Carga historial       │
-                    │   - Carga memoria larga   │
-                    └────────────┬─────────────┘
-                                 │
-                    ┌────────────┴─────────────┐
-                    │     LLM Router            │
-                    │   - Envía prompt a Ollama │
-                    │   - Procesa respuesta     │
-                    │   - Detecta tool calls    │
-                    └────────────┬─────────────┘
-                                 │
-                    ┌────────────┴─────────────┐
-                    │     Tool Orchestrator     │
-                    │   - Recibe tool call      │
-                    │   - Valida permisos       │
-                    │   - Ejecuta herramienta   │
-                    │   - Devuelve resultado    │
-                    └────────────┬─────────────┘
-                                 │
-              ┌──────────────────┼──────────────────┐
-              ▼                  ▼                  ▼
-    ┌──────────────┐   ┌──────────────┐   ┌──────────────┐
-    │  File System  │   │   SQLite DB   │   │    Web       │
-    │  (sandbox)    │   │   (memoria)   │   │  (scrape)    │
-    └──────────────┘   └──────────────┘   └──────────────┘
+┌────────────────────────────────────────────────────────────┐
+│                        R2 HUB                              │
+│  FastAPI :8234                                             │
+│                                                            │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │ AgentManager  │  │  ProcessPool │  │  Hub UI (S3) │     │
+│  │ - create      │  │  - start     │  │  - dashboard  │     │
+│  │ - delete      │  │  - stop      │  │  - wizard     │     │
+│  │ - configure   │  │  - restart   │  │  - logs       │     │
+│  │ - list        │  │  - health    │  │  - settings   │     │
+│  └──────┬───────┘  └──────┬───────┘  └──────────────┘     │
+│         │                 │                                 │
+└─────────┼─────────────────┼─────────────────────────────────┘
+          │                 │
+          │      HTTP (localhost)
+          │                 │
+┌─────────▼─────────────────▼─────────────────────────────────┐
+│  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐  │
+│  │  🤖 Agente A   │  │  🤖 Agente B   │  │  🤖 Agente C   │  │
+│  │  FastAPI:9001   │  │  FastAPI:9002   │  │  FastAPI:9003   │  │
+│  │                 │  │                 │  │                 │  │
+│  │  /api/v1/chat  │  │  /api/v1/chat  │  │  /api/v1/chat  │  │
+│  │  /api/v1/health │  │  /api/v1/health │  │  /api/v1/health │  │
+│  │  /api/v1/session│  │  /api/v1/session│  │  /api/v1/session│  │
+│  │                 │  │                 │  │                 │  │
+│  │  memory.db     │  │  memory.db     │  │  memory.db     │  │
+│  │  (SQLite)       │  │  (SQLite)       │  │  (SQLite)       │  │
+│  └────────────────┘  └────────────────┘  └────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+
+                ┌──────────────────────────────────┐
+                │   Proveedores Externos            │
+                │                                  │
+                │   Ollama   → localhost:11434      │
+                │   OpenAI   → api.openai.com       │
+                │   Anthropic → api.anthropic.com  │
+                │   Google   → generativelanguage  │
+                │   Otros    → configurables       │
+                └──────────────────────────────────┘
 ```
 
 ---
 
-## 2. API Endpoints (FastAPI)
+## 2. Hub — API Endpoints
 
-### 2.1 Chat
+### 2.1 Gestión de Agentes
+
+```yaml
+GET  /api/v1/hub/agents
+  → Lista todos los agentes con estado
+  Response: [
+    {
+      "name": "r2-prime",
+      "status": "online",       # online | offline | starting | error
+      "port": 9001,
+      "pid": 12345,
+      "uptime": 3600,
+      "memory_mb": 45.2,
+      "cpu_percent": 2.1,
+      "disk_mb": 128,
+      "description": "Asistente personal",
+      "created_at": "2026-07-17T05:00:00Z"
+    },
+    ...
+  ]
+
+POST /api/v1/hub/agents
+  → Crea un nuevo agente
+  Body: {
+    "name": "legal-assistant",
+    "description": "Abogado laboral",
+    "personality": {
+      "tone": "professional",
+      "formality": "usted",
+      "humor": "none",
+      "empathy": "professional"
+    },
+    "system_prompt": "Eres un abogado senior...",
+    "llm": {
+      "provider": "ollama",
+      "model": "qwen2.5:7b",
+      "temperature": 0.3
+    },
+    "tools": ["read_file", "write_file", "search_web"],
+    "security_level": 2,
+    "sandbox_paths": ["~/r2-hub/agents/legal-assistant/data/"],
+    "channels": {
+      "web": true,
+      "whatsapp": {"enabled": false}
+    }
+  }
+  Response: {
+    "name": "legal-assistant",
+    "port": 9002,
+    "dir": "~/r2-hub/agents/legal-assistant/",
+    "status": "starting",
+    "chat_url": "http://localhost:9002/chat"
+  }
+
+DELETE /api/v1/hub/agents/{name}
+  → Elimina un agente (lo detiene + archiva su directorio)
+  
+POST /api/v1/hub/agents/{name}/start
+  → Inicia un agente que está offline
+  
+POST /api/v1/hub/agents/{name}/stop
+  → Detiene un agente graceful (SIGTERM)
+  
+POST /api/v1/hub/agents/{name}/restart
+  → Detiene + inicia
+
+GET /api/v1/hub/agents/{name}/config
+  → Devuelve el config.yaml del agente
+  
+PUT /api/v1/hub/agents/{name}/config
+  → Actualiza config (requiere restart)
+```
+
+### 2.2 Monitoreo y Logs
+
+```yaml
+GET /api/v1/hub/agents/{name}/logs
+  → Logs en tiempo real del agente
+  Query: ?tail=50&since=2026-07-17T05:00:00Z
+  
+GET /api/v1/hub/agents/{name}/stats
+  → Estadísticas: tokens usados, tools ejecutadas, conversaciones
+
+GET /api/v1/hub/health
+  → Health general del Hub + agentes
+```
+
+### 2.3 Enrutamiento al chat del agente
+
+```yaml
+POST /api/v1/hub/proxy/{agent_name}/chat
+  → Proxy: recibe mensaje, lo reenvía al agente, devuelve respuesta
+  → Útil para el frontend sin saber el puerto del agente
+```
+
+---
+
+## 3. Agent Engine (cada agente)
+
+Cada agente ejecuta el mismo **engine base** con su propia configuración.
+
+### 3.1 API de cada agente
 
 ```yaml
 POST /api/v1/chat
-  URL: http://localhost:8234/api/v1/chat
-  Body:
-    session_id: str (opcional, si es nueva omitir)
-    message: str
-    user_id: str
-    specialty_id: str (opcional, default "default")
-  
-  Response:
-    session_id: str
-    reply: str
-    tools_used: list[str]
-    tokens_used: int
-
-GET /api/v1/chat/{session_id}
-  Returns historial completo de la sesión
-
-DELETE /api/v1/chat/{session_id}
-  Limpia historial de la sesión
-```
-
-### 2.2 Sesiones
-
-```yaml
-GET /api/v1/sessions?user_id=xxx
-  Lista sesiones activas del usuario
-
-POST /api/v1/sessions/new
-  Body: { user_id, specialty_id }
-  Response: { session_id }
-
-POST /api/v1/sessions/{id}/archive
-  Archiva la sesión (no se borra)
-```
-
-### 2.3 Especialidades
-
-```yaml
-GET /api/v1/specialties
-  Lista especialidades instaladas
-
-GET /api/v1/specialties/{id}
-  Detalle de una especialidad
-
-POST /api/v1/specialties/install
-  Body: (multipart) JSON + archivos de conocimiento
-  Instala nueva especialidad
-```
-
-### 2.4 Archivos
-
-```yaml
-POST /api/v1/upload
-  Body: multipart/file
-  Response: { file_id, filename, size, path }
-
-GET /api/v1/files/{file_id}
-  Descarga archivo
-
-DELETE /api/v1/files/{file_id}
-  Elimina archivo
-```
-
-### 2.5 Admin / Seguridad
-
-```yaml
-GET /api/v1/admin/users
-  Lista usuarios
-
-POST /api/v1/admin/users
-  Crea/actualiza usuario
-
-GET /api/v1/admin/audit?user_id=xxx
-  Log de auditoría filtrado
-
-POST /api/v1/admin/permissions
-  Body: { user_id, level: 0|1|2|3 }
-```
-
----
-
-## 3. Tool System
-
-### 3.1 Definición de herramienta
-
-Cada herramienta es una función registrada con metadata:
-
-```python
-@dataclass
-class Tool:
-    name: str                    # Identificador único
-    description: str             # Para el LLM
-    category: str                # file | db | web | comms | system
-    min_level: int               # Nivel mínimo de permiso
-    parameters: list[Param]      # Parámetros que acepta
-    requires_confirmation: bool  # ¿Preguntar al usuario?
-    timeout_seconds: int         # Timeout máximo
-
-@dataclass
-class Param:
-    name: str
-    type: str                    # string | integer | boolean | file
-    description: str
-    required: bool
-    enum: list[str] | None       # Valores permitidos
-```
-
-### 3.2 Herramientas base (core)
-
-```python
-tools_registry = {
-    # Archivos
-    "read_file": Tool(
-        name="read_file",
-        description="Lee el contenido de un archivo. Ruta relativa al sandbox.",
-        category="file",
-        min_level=1,
-        parameters=[Param("path", "string", "Ruta del archivo", True)],
-        requires_confirmation=False,
-    ),
-    "write_file": Tool(
-        name="write_file",
-        description="Escribe contenido en un archivo. Si existe, lo sobrescribe.",
-        category="file",
-        min_level=2,
-        parameters=[
-            Param("path", "string", "Ruta del archivo", True),
-            Param("content", "string", "Contenido a escribir", True),
-        ],
-        requires_confirmation=True,
-    ),
-    "list_files": Tool(
-        name="list_files",
-        description="Lista archivos en un directorio del sandbox.",
-        category="file",
-        min_level=1,
-        parameters=[Param("path", "string", "Ruta del directorio", False)],
-        requires_confirmation=False,
-    ),
-    
-    # Base de datos
-    "query_db": Tool(
-        name="query_db",
-        description="Ejecuta una consulta SQL de solo lectura en la BD.",
-        category="db",
-        min_level=1,
-        parameters=[Param("query", "string", "Consulta SQL SELECT", True)],
-        requires_confirmation=False,
-    ),
-    "save_memory": Tool(
-        name="save_memory",
-        description="Guarda un dato en la memoria a largo plazo del usuario.",
-        category="db",
-        min_level=1,
-        parameters=[
-            Param("key", "string", "Clave del dato", True),
-            Param("value", "string", "Valor del dato", True),
-        ],
-        requires_confirmation=False,
-    ),
-    "get_memory": Tool(
-        name="get_memory",
-        description="Recupera un dato de la memoria a largo plazo.",
-        category="db",
-        min_level=1,
-        parameters=[Param("key", "string", "Clave a buscar", True)],
-        requires_confirmation=False,
-    ),
-    
-    # Web / Internet
-    "search_web": Tool(
-        name="search_web",
-        description="Busca información en internet.",
-        category="web",
-        min_level=1,
-        parameters=[Param("query", "string", "Términos de búsqueda", True)],
-        requires_confirmation=False,
-    ),
-    "fetch_url": Tool(
-        name="fetch_url",
-        description="Obtiene el contenido de una URL.",
-        category="web",
-        min_level=1,
-        parameters=[Param("url", "string", "URL a obtener", True)],
-        requires_confirmation=False,
-    ),
-    
-    # WhatsApp
-    "send_whatsapp": Tool(
-        name="send_whatsapp",
-        description="Envía un mensaje de WhatsApp.",
-        category="comms",
-        min_level=3,
-        parameters=[
-            Param("to", "string", "Número destino (+57...)", True),
-            Param("message", "string", "Mensaje a enviar", True),
-        ],
-        requires_confirmation=True,
-    ),
-}
-```
-
-### 3.3 Cómo el LLM llama herramientas — NATIVO (Ollama API)
-
-Ollama soporta `tools` en su API de chat. El modelo sabe qué herramientas
-disponibles tiene y las llama con la estructura correcta.
-
-**El LLM no produce JSON manual.** El API de Ollama maneja todo.
-
-#### Llamada a Ollama con tools
-
-```python
-# No parseamos JSON. Ollama lo hace.
-
-response = ollama.chat(
-    model="qwen2.5:7b",
-    messages=[
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": message},
-    ],
-    tools=[
-        {
-            "type": "function",
-            "function": {
-                "name": "read_file",
-                "description": "Lee el contenido de un archivo",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "path": {
-                            "type": "string",
-                            "description": "Ruta del archivo"
-                        }
-                    },
-                    "required": ["path"]
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "search_web",
-                "description": "Busca información en internet",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "Términos de búsqueda"
-                        }
-                    },
-                    "required": ["query"]
-                }
-            }
-        }
+  Body (multipart): {
+    "session_id": str | None,     # None = nueva sesión
+    "message": str,
+    "user_id": str,
+    "files": [File] | None       # Archivos adjuntos
+  }
+  Response: {
+    "session_id": str,
+    "reply": str,
+    "tools_used": list[str],
+    "tokens_used": int,
+    "attachments": [             # Archivos recibidos
+      {"id": str, "name": str, "type": str, "size": int}
     ]
+  }
+
+POST /api/v1/chat/simple          # Sin archivos, solo texto
+  Body: {
+    "session_id": str | None,
+    "message": str,
+    "user_id": str
+  }
+  Response: {
+    "session_id": str,
+    "reply": str,
+    "tools_used": list[str],
+    "tokens_used": int
+  }
+
+GET  /api/v1/sessions
+  → Lista sesiones del agente
+
+POST /api/v1/upload
+  → Subir archivo al data/ del agente
+  
+GET  /api/v1/files
+  → Listar archivos en data/ del agente
+
+GET  /api/v1/files/{id}
+  → Descargar archivo
+
+DELETE /api/v1/files/{id}
+  → Eliminar archivo
+
+GET  /api/v1/health
+  → { "status": "ok", "uptime": 3600, "model": "qwen2.5:7b",
+      "files_count": int, "sessions_active": int }
+```
+
+### 3.2 Componentes internos (engine template)
+
+```python
+# templates/agent_main.py
+#
+# Cada agente recibe UNA COPIA de este archivo.
+# Se puede modificar sin afectar a otros agentes.
+
+import os, sys, yaml
+from pathlib import Path
+
+AGENT_DIR = Path(__file__).parent        # ~/r2-hub/agents/{name}/
+CONFIG = yaml.safe_load((AGENT_DIR / "config.yaml").read_text())
+
+app = FastAPI(title=CONFIG["agent"]["name"])
+
+# ── LLM Adapter ──────────────────────────────────
+llm = LLMAdapter(
+    provider=CONFIG["llm"]["provider"],
+    model=CONFIG["llm"]["model"],
+    api_key=CONFIG["llm"].get("api_key"),  # ← Para OpenAI, Anthropic, etc.
+    host=CONFIG["llm"].get("host", "http://localhost:11434"),
+    temperature=CONFIG["llm"].get("temperature", 0.7),
 )
 
-# La respuesta ya viene estructurada:
-if response["message"].get("tool_calls"):
-    for tool_call in response["message"]["tool_calls"]:
-        name = tool_call["function"]["name"]
-        args = tool_call["function"]["arguments"]
-        result = orchestrator.execute(name, args)
-        
-        # Enviar resultado de vuelta al modelo
-        messages.append({
-            "role": "tool",
-            "content": str(result),
-            "name": name
-        })
+# ── Tools ─────────────────────────────────────────
+tool_registry = ToolRegistry(CONFIG["tools"]["allow"])
+tool_registry.load_base_tools()
+if (AGENT_DIR / "tools").exists():
+    tool_registry.load_custom_tools(AGENT_DIR / "tools")
+
+orchestrator = ToolOrchestrator(tool_registry)
+
+# ── Memory ────────────────────────────────────────
+db = Database(AGENT_DIR / "memory.db")
+db.init_schema()
+
+# ── Security ──────────────────────────────────────
+sandbox = Sandbox(CONFIG["security"]["sandbox"]["paths"])
+permissions = PermissionEnforcer(CONFIG["security"]["level"])
+audit = AuditLogger(AGENT_DIR / "logs" / "audit.log")
+
+
+@app.post("/api/v1/chat")
+async def chat(session_id: str = None, message: str = None, user_id: str = "default"):
+    if not session_id:
+        session = db.create_session(user_id)
+        session_id = session.id
+    else:
+        session = db.get_session(session_id)
     
-    # El modelo responde basado en el resultado
-    final = ollama.chat(model="qwen2.5:7b", messages=messages)
-```
-
-#### Estructura de herramientas en OpenAPI Schema
-
-```python
-def get_tools_for_level(level: int) -> list[dict]:
-    """Convierte las Tools del registry al formato que Ollama entiende."""
-    tools = []
-    for tool in registry.list():
-        if level < tool.min_level:
-            continue
-        
-        tools.append({
-            "type": "function",
-            "function": {
-                "name": tool.name,
-                "description": tool.description,
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        p.name: {
-                            "type": p.type,
-                            "description": p.description,
-                        }
-                        for p in tool.parameters
-                    },
-                    "required": [p.name for p in tool.parameters if p.required],
-                }
-            }
-        })
-    return tools
-```
-
-#### El system prompt ya no necesita el JSON manual
-
-```text
-## Capacidades
-Puedes usar herramientas para:
-- Leer y escribir archivos
-- Buscar en internet
-- Consultar la base de datos
-- Enviar WhatsApp
-
-Cuando necesites una herramienta, el sistema la manejará automáticamente.
-Solo di qué necesitas en lenguaje natural.
-
-El sistema te pasará el resultado y tú interpretas lo que significa.
-```
-
-El LLM se enfoca en pensar y razonar. La estructura de la llamada la maneja el API.
-
----
-
-## 4. LLM Integration
-
-### 4.1 Configuración
-
-```python
-# config.py
-LLM_CONFIG = {
-    "default": {
-        "model": "qwen2.5:7b",
-        "host": "http://localhost:11434",
-        "temperature": 0.7,
-        "max_tokens": 4096,
-        "context_length": 8192,
-    },
-    "legal": {
-        "model": "qwen2.5:7b",
-        "temperature": 0.3,   # Más preciso, menos creativo
-        "max_tokens": 8192,
-    },
-    "baros": {
-        "model": "qwen2.5:1.5b",
-        "temperature": 0.8,   # Más conversacional
-        "max_tokens": 2048,
-    },
-}
-```
-
-### 4.2 Chat handler flow (con native tool calling)
-
-```python
-def get_tools_for_specialty(specialty: Speciality, user_level: int) -> list:
-    """Convierte herramientas del registry al formato de Ollama."""
-    return [
-        tool.to_ollama_format()
-        for tool in registry.list()
-        if user_level >= tool.min_level
-        and tool.name not in specialty.config.get("deny_tools", [])
-    ]
-
-
-async def chat(session_id, message, user_id, specialty_id):
-    # 1. Cargar sesión
-    session = SessionManager.get(session_id, user_id)
-    user = AuthManager.get_user(user_id)
-    specialty = SpecialtyManager.get(specialty_id or user.default_specialty)
-    
-    # 2. Construir mensajes
+    # 1. Construir mensajes
     messages = [
-        {"role": "system", "content": specialty.system_prompt},
-        *session.get_recent_messages(limit=20),
+        {"role": "system", "content": CONFIG["personality"]["system_prompt"]},
+        *session.get_recent(limit=20),
         {"role": "user", "content": message},
     ]
     
-    # 3. Obtener herramientas disponibles para este usuario+especialidad
-    tools = get_tools_for_specialty(specialty, user.level)
+    # 2. Llamar LLM con tools disponibles
+    tools = tool_registry.to_ollama_format()
+    response = await llm.chat(messages, tools=tools)
     
-    # 4. Llamar a Ollama con tools nativo
-    response = await ollama.chat(
-        model=specialty.model,
-        messages=messages,
-        tools=tools,  # ← NATIVO, no parseamos nada
-    )
-    
-    msg = response["message"]
-    
-    # 5. ¿El modelo pidió usar una herramienta?
-    if msg.get("tool_calls"):
-        for tool_call in msg["tool_calls"]:
-            name = tool_call["function"]["name"]
-            args = tool_call["function"]["arguments"]
+    # 3. Procesar tool calls
+    tools_used = []
+    if response.tool_calls:
+        for tc in response.tool_calls:
+            result = orchestrator.execute(tc, user_id, permissions)
+            audit.log(user_id, tc["function"]["name"], result)
+            tools_used.append(tc["function"]["name"])
             
-            # Ejecutar herramienta
-            result = orchestrator.execute(name, args, user)
-            
-            # Enviar resultado al modelo
             messages.append({
                 "role": "tool",
                 "content": json.dumps(result),
-                "name": name,
+                "name": tc["function"]["name"],
             })
         
-        # 6. El modelo produce respuesta final con el resultado
-        response = await ollama.chat(
-            model=specialty.model,
-            messages=messages,
-            tools=tools,
-        )
-        content = response["message"]["content"]
+        # Respuesta final con resultados
+        final = await llm.chat(messages)
+        reply = final.content
     else:
-        # Sin tool call — respuesta directa
-        content = msg["content"]
+        reply = response.content
     
-    # 7. Guardar en BD
+    # 4. Guardar en BD
     session.add_message("user", message)
-    session.add_message("assistant", content)
+    session.add_message("assistant", reply, tools_used)
     
     return {
         "session_id": session.id,
-        "reply": content,
-        "tools_used": [
-            tc["function"]["name"]
-            for tc in msg.get("tool_calls", [])
-        ]
+        "reply": reply,
+        "tools_used": tools_used,
+        "tokens_used": response.tokens,
+        "attachments": attachments_received,   # Archivos recibidos
+    }
+
+
+# ── Archivos ────────────────────────────────────
+
+@app.post("/api/v1/upload")
+async def upload_file(file: UploadFile):
+    """Sube un archivo al data/ del agente."""
+    ext = Path(file.filename).suffix.lower()
+    allowed = CONFIG["files"]["allowed_extensions"]
+    
+    if ext not in allowed:
+        raise HTTPException(400, f"Extensión no permitida: {ext}")
+    
+    file_id = str(uuid.uuid4())
+    file_path = AGENT_DIR / "data" / f"{file_id}{ext}"
+    file_path.write_bytes(await file.read())
+    
+    return {"id": file_id, "name": file.filename, "path": str(file_path), "size": file_path.stat().st_size}
+
+
+@app.get("/api/v1/files")
+async def list_files():
+    """Lista archivos en data/ del agente."""
+    data_dir = AGENT_DIR / "data"
+    files = []
+    for f in data_dir.iterdir():
+        if f.is_file():
+            files.append({"name": f.name, "size": f.stat().st_size, "modified": f.stat().st_mtime})
+    return {"files": files}
+
+
+@app.get("/api/v1/files/{file_id}")
+async def download_file(file_id: str):
+    """Descarga un archivo del data/ del agente."""
+    data_dir = AGENT_DIR / "data"
+    for f in data_dir.iterdir():
+        if f.stem == file_id:
+            return FileResponse(f)
+    raise HTTPException(404, "Archivo no encontrado")
+
+
+@app.delete("/api/v1/files/{file_id}")
+async def delete_file(file_id: str):
+    """Elimina un archivo del data/ del agente."""
+    data_dir = AGENT_DIR / "data"
+    for f in data_dir.iterdir():
+        if f.stem == file_id:
+            f.unlink()
+            return {"status": "deleted", "file": f.name}
+    raise HTTPException(404, "Archivo no encontrado")
+
+
+@app.get("/api/v1/health")
+async def health():
+    return {
+        "status": "ok",
+        "name": CONFIG["agent"]["name"],
+        "uptime": time.time() - start_time,
+        "model": CONFIG["llm"]["model"],
+        "sessions_active": db.count_active_sessions(),
     }
 ```
 
----
+### 3.3 Gestión de API Keys
 
-## 5. Database Schema (SQLite)
+Cada agente almacena sus propias API keys en su `config.yaml`. El Hub provee una interfaz para gestionarlas de forma segura.
+
+#### Config de LLM con proveedores externos
+
+```yaml
+# ~/r2-hub/agents/marketing-bot/config.yaml
+llm:
+  provider: openai          # ollama | openai | anthropic | google | custom
+  api_key: "sk-proj-..."    # ← Key del proveedor
+  model: gpt-4o              # Modelo específico
+  temperature: 0.8
+  # host: solo para Ollama o endpoints custom
+
+# Opción: keys desde variable de entorno (más seguro)
+# api_key: "${OPENAI_API_KEY}"
+```
+
+#### Proveedores soportados
+
+| Provider | Config | API Key |
+|----------|--------|---------|
+| Ollama | Local | No necesita key |
+| OpenAI | `gpt-4o`, `gpt-4`, `gpt-3.5-turbo` | `sk-...` |
+| Anthropic | `claude-opus-4`, `claude-sonnet-4` | `sk-ant-...` |
+| Google | `gemini-2.0-flash`, `gemini-2.0-pro` | `AIza...` |
+| Custom | Cualquier endpoint compatible con OpenAI API | Según el provider |
+
+#### Seguridad de keys
+
+```yaml
+# Opción 1: En config.yaml (simple, visible)
+llm:
+  provider: openai
+  api_key: "sk-proj-abc123..."
+
+# Opción 2: Variable de entorno (más seguro)
+llm:
+  provider: openai
+  api_key: "${OPENAI_API_KEY}"   # Se resuelve al iniciar el agente
+
+# Opción 3: Keychain del sistema (recomendado)
+# El Hub almacena keys en el keychain del SO
+# El agente las pide al iniciar
+```
+
+#### El Hub también puede gestionar keys globales
+
+```yaml
+# config.yaml del Hub
+hub:
+  api_keys:
+    openai: "${OPENAI_API_KEY}"       # Key global del Hub
+    anthropic: "${ANTHROPIC_API_KEY}"
+
+  api_key_inheritance: true   # Los agentes heredan keys del Hub
+                              # si no especifican las suyas propias
+```
+
+### 3.4 Tool Registry (por agente)
+
+Cada agente tiene su propio registro de tools. Las tools base son las mismas, pero cada agente puede **añadir o denegar** las que quiera.
+
+```python
+class ToolRegistry:
+    """Registro de herramientas disponible para UN agente."""
+    
+    BASE_TOOLS = {
+        "read_file": FileReadTool,
+        "write_file": FileWriteTool,
+        "list_files": FileListTool,
+        "search_web": WebSearchTool,
+        "fetch_url": WebFetchTool,
+        "save_memory": MemorySaveTool,
+        "get_memory": MemoryGetTool,
+        "query_db": DBQueryTool,
+        "read_document": DocumentReadTool,    # PDF, DOCX, TXT, CSV, XLSX
+        "read_image": ImageReadTool,          # Visión con LLM
+        "read_audio": AudioReadTool,          # Transcripción whisper
+        "list_attachments": AttachmentsListTool,
+        "exec_command": ExecCommandTool,      # Solo Nivel 3
+        "send_whatsapp": WhatsAppSendTool,
+    }
+    
+    def __init__(self, allow_list: list[str], deny_list: list[str] = None):
+        self.deny = set(deny_list or [])
+        self.allow = set(allow_list)
+        
+        self.tools = {}
+        for name, tool_class in self.BASE_TOOLS.items():
+            if name in self.deny:
+                continue
+            if "*" in self.allow or name in self.allow:
+                self.tools[name] = tool_class()
+        
+        # Cargar tools personalizadas del agente
+        custom_dir = AGENT_DIR / "tools"
+        if custom_dir.exists():
+            self._load_custom(custom_dir)
+```
+
+### 3.4 Agente puede tener tools personalizadas
+
+Si el usuario (o el Hub) pone archivos Python en `~/r2-hub/agents/{name}/tools/`, se cargan automáticamente:
+
+```python
+# ~/r2-hub/agents/baros/tools/consultar_stock.py
+
+@tool(name="consultar_stock", description="Consulta el stock de un producto")
+def consultar_stock(producto: str, cantidad: int = None) -> dict:
+    """Tool específica de BarOS."""
+    db = connect_to_local_db()
+    return db.query("SELECT * FROM stock WHERE producto = ?", [producto])
+```
+
+### 3.6 Memoria (SQLite) — por agente
+
+Cada agente tiene su propio `memory.db`:
 
 ```sql
--- Sesiones de conversación
-CREATE TABLE sessions (
-    id          TEXT PRIMARY KEY,      -- UUID
-    user_id     TEXT NOT NULL,
-    specialty_id TEXT DEFAULT 'default',
-    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-    active      BOOLEAN DEFAULT 1,
-    archived    BOOLEAN DEFAULT 0
-);
+-- ~/r2-hub/agents/r2-prime/memory.db
+-- IDÉNTICO esquema, pero datos completamente independientes
 
--- Mensajes individuales
-CREATE TABLE messages (
-    id          TEXT PRIMARY KEY,      -- UUID
-    session_id  TEXT NOT NULL REFERENCES sessions(id),
-    role        TEXT NOT NULL,         -- 'user' | 'assistant' | 'system' | 'tool'
-    content     TEXT NOT NULL,
-    tools_used  TEXT,                  -- JSON list
-    tokens      INTEGER DEFAULT 0,
-    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- Memoria a largo plazo (clave-valor por usuario)
-CREATE TABLE long_term_memory (
-    id          TEXT PRIMARY KEY,
-    user_id     TEXT NOT NULL,
-    key         TEXT NOT NULL,
-    value       TEXT NOT NULL,
-    category    TEXT DEFAULT 'general', -- 'preference' | 'fact' | 'context'
-    confidence  REAL DEFAULT 1.0,      -- 0.0 a 1.0
-    updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_id, key)
-);
-
--- Usuarios del sistema
-CREATE TABLE users (
-    id          TEXT PRIMARY KEY,
-    name        TEXT NOT NULL,
-    role        TEXT DEFAULT 'user',    -- 'admin' | 'user' | 'readonly'
-    permission_level INTEGER DEFAULT 1, -- 0-3
-    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-    active      BOOLEAN DEFAULT 1
-);
-
--- Especialidades instaladas
-CREATE TABLE specialties (
-    id          TEXT PRIMARY KEY,
-    name        TEXT NOT NULL,
-    version     TEXT DEFAULT '1.0',
-    config      TEXT NOT NULL,          -- JSON completo de la especialidad
-    installed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    active      BOOLEAN DEFAULT 1
-);
-
--- Auditoría de herramientas
-CREATE TABLE audit_log (
-    id          TEXT PRIMARY KEY,
-    user_id     TEXT NOT NULL,
-    session_id  TEXT,
-    tool_name   TEXT NOT NULL,
-    params      TEXT,                   -- JSON
-    result      TEXT,                   -- JSON
-    success     BOOLEAN,
-    duration_ms INTEGER,
-    ip_address  TEXT,
-    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
-);
+CREATE TABLE sessions (...);
+CREATE TABLE messages (...);
+CREATE TABLE long_term_memory (...);
+CREATE TABLE audit_log (...);
 ```
 
 ---
 
-## 6. Seguridad — Implementación
+## 4. AgentManager — El corazón del Hub
 
-### 6.1 Sandbox de archivos
+### 4.1 Creación de agente
 
 ```python
-import os
-from pathlib import Path
-
-class Sandbox:
-    """Restringe acceso del agente a carpetas permitidas."""
+class AgentManager:
+    """Gestiona los agentes en el sistema.
     
-    ALLOWED_DIRS = [
-        Path("/home/abogado/casos"),
-        Path("/home/abogado/plantillas"),
-        Path("/tmp/r2-temp"),
-    ]
+    Cada agente vive en la ubicación que el usuario eligió.
+    El Hub mantiene un registro de dónde está cada uno.
+    """
     
-    @classmethod
-    def resolve_path(cls, rel_path: str) -> Path:
-        """Resuelve una ruta relativa dentro del sandbox.
+    TEMPLATES_DIR = Path.home() / "AgentOS" / "templates"
+    PORT_START = 9000
+    _port_lock = Lock()
+    _registry_path = Path.home() / "AgentOS" / "agents.json"
+    
+    def __init__(self):
+        self.agents = self._load_registry()
+    
+    def create(self, name: str, install_path: str, config: dict) -> AgentInfo:
+        """Crea un nuevo agente en la ubicación que el usuario eligió."""
         
-        Lanza PermissionError si intenta salir del sandbox.
-        """
-        # Intentar en cada directorio permitido
-        for base in cls.ALLOWED_DIRS:
-            full = (base / rel_path).resolve()
-            # Verificar que está dentro del directorio permitido
-            if str(full).startswith(str(base)):
-                if full.exists() or full.parent.exists():
-                    return full
+        # 1. Validar nombre
+        if not name or len(name.strip()) == 0:
+            raise ValueError("El nombre del agente no puede estar vacío")
         
-        raise PermissionError(f"Acceso denegado: {rel_path}")
+        agent_dir = Path(install_path) / name
+        if agent_dir.exists():
+            raise FileExistsError(f"Ya existe un agente llamado '{name}' en esa ubicación")
+        
+        # 2. Crear estructura de directorios
+        agent_dir.mkdir(parents=True)
+        (agent_dir / "data").mkdir()
+        (agent_dir / "logs").mkdir()
+        (agent_dir / "tools").mkdir()
+        
+        # 3. Asignar puerto único
+        port = self._next_port()
+        
+        # 4. Generar config.yaml
+        config["agent"]["name"] = name
+        config["agent"]["install_path"] = str(agent_dir)
+        config["agent"]["port"] = port
+        config["agent"]["status"] = "offline"
+        (agent_dir / "config.yaml").write_text(yaml.dump(config))
+        
+        # 5. Copiar engine template
+        template = self.TEMPLATES_DIR / "agent_main.py"
+        shutil.copy(template, agent_dir / "agent_main.py")
+        
+        # 6. Copiar componentes base (llm/, tools/, security/, memory/)
+        self._copy_template_dir("llm", agent_dir)
+        self._copy_template_dir("tools", agent_dir)
+        self._copy_template_dir("security", agent_dir)
+        self._copy_template_dir("memory", agent_dir)
+        
+        # 7. Inicializar BD
+        db = Database(agent_dir / "memory.db")
+        db.init_schema()
+        
+        # 8. Crear entry point (script)
+        self._create_run_script(agent_dir, port)
+        
+        # 9. Registrar en el Hub
+        info = AgentInfo(
+            name=name,
+            port=port,
+            dir=agent_dir,
+            install_path=str(agent_dir),
+            status="offline"
+        )
+        self.agents[name] = info
+        self._save_registry()
+        
+        return info
+    
+    def delete(self, name: str, archive: bool = True):
+        """Detiene el agente y archiva o elimina su directorio."""
+        if name not in self.agents:
+            raise KeyError(f"Agente '{name}' no encontrado")
+        
+        info = self.agents[name]
+        self.stop(name)
+        
+        if archive:
+            # Mover a una carpeta de backups en lugar de borrar
+            backup_dir = Path.home() / "AgentOS" / "archived" / name
+            shutil.move(info.dir, backup_dir)
+        else:
+            shutil.rmtree(info.dir)
+        
+        del self.agents[name]
+        self._save_registry()
+    
+    def _load_registry(self) -> dict:
+        if self._registry_path.exists():
+            data = json.loads(self._registry_path.read_text())
+            return {k: AgentInfo(**v) for k, v in data.items()}
+        return {}
+    
+    def _save_registry(self):
+        self._registry_path.parent.mkdir(parents=True, exist_ok=True)
+        data = {k: v.__dict__ for k, v in self.agents.items()}
+        self._registry_path.write_text(json.dumps(data, indent=2))
+    
+    def _next_port(self) -> int:
+        with self._port_lock:
+            used = {a.port for a in self.agents.values()}
+            port = self.PORT_START
+            while port in used:
+                port += 1
+            return port
 ```
 
-### 6.2 Permission levels enforcement
+### 4.2 Ciclo de vida del proceso
 
 ```python
-class PermissionEnforcer:
-    """Valida cada acción contra el nivel de permiso del usuario."""
+class AgentProcess:
+    """Maneja el subproceso de un agente."""
     
-    LEVEL_0 = 0  # Solo conversación
-    LEVEL_1 = 1  # Lectura
-    LEVEL_2 = 2  # Lectura + escritura controlada
-    LEVEL_3 = 3  # Acción autónoma
+    def __init__(self, name: str, port: int, agent_dir: Path):
+        self.name = name
+        self.port = port
+        self.agent_dir = agent_dir
+        self.process: subprocess.Popen | None = None
+        self.start_time: float | None = None
     
-    REQUIRES_CONFIRMATION = {
-        "write_file": LEVEL_2,
-        "delete_file": LEVEL_2,
-        "send_whatsapp": LEVEL_3,
-        "execute_command": LEVEL_3,
-        "modify_db": LEVEL_2,
-    }
+    def start(self):
+        """Lanza el agente como subproceso independiente."""
+        log_file = open(self.agent_dir / "logs" / "agent.log", "a")
+        
+        self.process = subprocess.Popen(
+            [
+                sys.executable, "-m", "uvicorn",
+                "agent_main:app",
+                f"--port={self.port}",
+                "--host=127.0.0.1",
+                "--log-level=info",
+            ],
+            cwd=str(self.agent_dir),
+            stdout=log_file,
+            stderr=log_file,
+            # Grupo de proceso independiente
+            start_new_session=True,
+        )
+        self.start_time = time.time()
+        
+        # Esperar a que responda health check
+        self._wait_ready(timeout=10)
     
-    @classmethod
-    def check(cls, tool_name: str, user_level: int) -> bool:
-        return user_level >= cls.REQUIRES_CONFIRMATION.get(tool_name, LEVEL_0)
+    def stop(self, timeout=5):
+        """Detiene el agente graceful."""
+        if self.process is None:
+            return
+        
+        # SIGTERM primero
+        self.process.terminate()
+        try:
+            self.process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            # SIGKILL si no responde
+            self.process.kill()
+            self.process.wait()
+        
+        self.process = None
+        self.start_time = None
+    
+    def restart(self):
+        self.stop()
+        self.start()
+    
+    @property
+    def is_alive(self) -> bool:
+        if self.process is None:
+            return False
+        return self.process.poll() is None
+    
+    def _wait_ready(self, timeout=10):
+        """Espera a que el health check responda."""
+        import httpx
+        start = time.time()
+        while time.time() - start < timeout:
+            try:
+                r = httpx.get(f"http://127.0.0.1:{self.port}/api/v1/health", timeout=1)
+                if r.status_code == 200:
+                    return True
+            except:
+                pass
+            time.sleep(0.5)
+        raise TimeoutError(f"Agente {self.name} no respondió en {timeout}s")
+```
+
+### 4.3 Health Checker continuo
+
+```python
+class HealthChecker:
+    """Monitorea todos los agentes en un loop async."""
+    
+    def __init__(self, manager: AgentManager, check_interval=15):
+        self.manager = manager
+        self.interval = check_interval
+    
+    async def run(self):
+        while True:
+            for agent in self.manager.list():
+                if agent.status == "online":
+                    alive = await self._check(agent)
+                    if not alive and agent.config.get("auto_restart", True):
+                        logger.warning(f"{agent.name} offline → reiniciando")
+                        self.manager.restart(agent.name)
+            await asyncio.sleep(self.interval)
+    
+    async def _check(self, agent) -> bool:
+        try:
+            async with httpx.AsyncClient() as client:
+                r = await client.get(
+                    f"http://127.0.0.1:{agent.port}/api/v1/health",
+                    timeout=3
+                )
+                return r.status_code == 200
+        except:
+            return False
 ```
 
 ---
 
-## 7. Estructura de Archivos (backend)
+## 5. Estructura de Archivos (Hub)
 
 ```
 r2-autonomous/
-├── backend/
-│   ├── main.py                   # FastAPI entry point
-│   ├── config.py                 # Configuración global
-│   ├── requirements.txt          # Dependencias Python
-│   │
-│   ├── llm/
-│   │   ├── __init__.py
-│   │   ├── client.py             # Conexión a Ollama
-│   │   ├── prompts.py            # Construcción de prompts
-│   │   └── parser.py             # Parseo de tool calls desde respuesta
-│   │
-│   ├── tools/
-│   │   ├── __init__.py
-│   │   ├── orchestrator.py       # ToolOrchestrator class
-│   │   ├── registry.py           # Registro de herramientas
-│   │   ├── file_tools.py         # read/write/list files
-│   │   ├── db_tools.py           # query/save/get memory
-│   │   ├── web_tools.py          # search/fetch web
-│   │   └── comms_tools.py        # WhatsApp
-│   │
-│   ├── security/
-│   │   ├── __init__.py
-│   │   ├── sandbox.py            # Restricción de archivos
-│   │   ├── permissions.py        # Niveles de acceso
-│   │   └── audit.py              # Log de acciones
-│   │
-│   ├── memory/
-│   │   ├── __init__.py
-│   │   ├── db.py                 # SQLite manager
-│   │   ├── session.py            # Gestión de sesiones
-│   │   └── models.py             # Modelos de datos
-│   │
-│   └── api/
-│       ├── __init__.py
-│       ├── chat.py               # Endpoints de chat
-│       ├── sessions.py           # Endpoints de sesiones
-│       ├── files.py              # Endpoints de archivos
-│       └── admin.py              # Endpoints de administración
+├── CONCEPTO.md                       ← Visión (este doc)
+├── DESIGN.md                         ← Especificación técnica (este doc)
+├── SPRINTS.md                        ← Plan de desarrollo
 │
-├── frontend/
-│   └── ... (React app - Sprint 3)
+├── hub/                              ← Backend del Hub
+│   ├── main.py                       ← FastAPI :8234
+│   ├── config.py                     ← Config del Hub
+│   ├── requirements.txt
+│   │
+│   ├── agent_manager.py              ← Crear/detener/gestión
+│   ├── agent_process.py              ← Manejo de subprocesos
+│   ├── health_checker.py             ← Monitoreo continuo
+│   │
+│   ├── api/
+│   │   ├── agents.py                 ← CRUD de agentes
+│   │   ├── proxy.py                  ← Proxy al chat del agente
+│   │   └── admin.py                  ← Config del Hub
+│   │
+│   └── templates/                    ← Plantillas para nuevos agentes
+│       ├── agent_main.py             ← Engine base
+│       ├── default_config.yaml       ← Config base
+│       └── run.sh / run.bat          ← Script de inicio
 │
-├── specialties/
-│   ├── default.json
-│   ├── legal-laboral.json
-│   └── baros.json
+├── frontend/                         ← React (Hub UI)
+│   └── ...
 │
-├── CONCEPTO.md                   # Visión general
-└── DESIGN.md                     # Este archivo (especificación técnica)
+└── config.yaml                       ← Config global del Hub
+    # Puerto base, directorio de agentes, etc.
 ```
 
 ---
 
-## 8. Implementación — Checklist para Trantor
+## 6. Seguridad
 
-### Fase 1 — Base (día 1-2)
+### 6.1 Aislamiento entre agentes
 
-- [ ] `backend/config.py` — Configuración
-- [ ] `backend/requirements.txt` — Dependencias
-- [ ] `backend/memory/db.py` — SQLite init + schema
-- [ ] `backend/memory/models.py` — Data classes
-- [ ] `backend/memory/session.py` — CRUD sesiones
-- [ ] `backend/main.py` — FastAPI app básica
+```
+┌──────────────────────────────────────────────────┐
+│  🔒 AISLAMIENTO                                  │
+│                                                   │
+│  Procesos:   Cada agente en su propio proceso     │
+│              PID separado, memoria separada       │
+│                                                   │
+│  Archivos:   Cada agente SOLO ve su directorio    │
+│              ~/r2-hub/agents/{name}/              │
+│              No puede leer archivos de otros      │
+│                                                   │
+│  Red:        Cada agente en su puerto             │
+│              Solo localhost, no expuesto          │
+│                                                   │
+│  BD:         memory.db propia                     │
+│              No comparte sesiones con nadie       │
+│                                                   │
+│  Si uno se cae → los otros siguen funcionando    │
+└──────────────────────────────────────────────────┘
+```
 
-### Fase 2 — LLM (día 2-3)
+### 6.2 Sandbox de cada agente
 
-- [ ] `backend/llm/client.py` — Conexión Ollama
-- [ ] `backend/llm/prompts.py` — System prompt builder
-- [ ] `backend/llm/parser.py` — Parseo de tool calls
-- [ ] Probar chat básico: mensaje → LLM → respuesta
+El sandbox del agente restringe el acceso a archivos dentro de su directorio:
 
-### Fase 3 — Tools (día 3-5)
+```python
+# Cada agente tiene su propio Sandbox
+sandbox_paths = [
+    "~/r2-hub/agents/r2-prime/data/",    # Solo sus datos
+]
+```
 
-- [ ] `backend/tools/registry.py` — Registro de herramientas
-- [ ] `backend/tools/orchestrator.py` — Ejecutor
-- [ ] `backend/tools/file_tools.py` — Archivos
-- [ ] `backend/tools/db_tools.py` — BD
-- [ ] `backend/tools/web_tools.py` — Web
-- [ ] Probar: LLM llama herramienta → ejecuta → devuelve resultado
+Si un agente necesita acceso a otras rutas (ej. R2 PRIME accede a `~/Trantor/`), se configura explícitamente en su `config.yaml`.
 
-### Fase 4 — Seguridad (día 5-6)
+### 6.3 Niveles de acceso (por agente)
 
-- [ ] `backend/security/sandbox.py` — Sandbox de archivos
-- [ ] `backend/security/permissions.py` — Niveles de acceso
-- [ ] `backend/security/audit.py` — Log de auditoría
-- [ ] Probar restricciones de seguridad
+Cada agente tiene su propio nivel de seguridad, configurable independientemente.
 
-### Fase 5 — API (día 6-7)
+El agente R2 PRIME de Xavier puede tener Nivel 3 (todo). El agente de un cliente solo Nivel 1.
 
-- [ ] `backend/api/chat.py` — Endpoint chat
-- [ ] `backend/api/sessions.py` — Endpoint sesiones
-- [ ] `backend/api/files.py` — Endpoint archivos
-- [ ] `backend/api/admin.py` — Endpoint admin
-- [ ] Probar flujo completo: API → LLM → Tool → Response
+---
+
+## 7. Models — Config del Hub
+
+```yaml
+# config.yaml — R2 Hub global
+hub:
+  name: "R2 Hub"
+  port: 8234
+  agents_dir: "~/r2-hub/agents"
+  templates_dir: "~/r2-hub/templates"
+  log_dir: "~/r2-hub/logs"
+
+  port_range:
+    start: 9000
+    end: 9999
+
+  health_check:
+    interval_seconds: 15
+    timeout_seconds: 5
+    auto_restart: true
+
+  llm_pool:                       # Pool compartido de Ollama
+    enabled: false                # (futuro)
+    models:
+      - qwen2.5:7b
+      - deepseek-coder:6.7b
+
+  web:                            # Frontend
+    enabled: true
+    port: 3000
+```
+
+---
+
+## 8. Diferencias clave con la v1
+
+| Componente | v1 (vieja) | v2 (Hub) |
+|------------|-----------|----------|
+| `backend/` | Un solo backend monolítico | `hub/` (gestión) + cada agente su propio backend |
+| `main.py` | Un solo entry point | Hub en :8234, cada agente su propio `agent_main.py` en su puerto |
+| `memory/` | Una BD global | Cada agente su `memory.db` |
+| `tools/` | Un registry global | Cada agente su propio registry + tools personalizadas |
+| `specialties/` | JSON de personalidades | Agentes completos con directorio propio |
+| `channels/` | Canales globales para el único agente | Cada agente decide sus canales |
+| `security/` | Una configuración | Cada agente su propio nivel y sandbox |
+| `api/` | APIs del agente | Hub tiene APIs de gestión + cada agente sus APIs de chat |
+
+---
+
+## 9. Checklist de implementación
+
+### Hub (Sprint 1)
+- [ ] `hub/main.py` — FastAPI en :8234
+- [ ] `hub/agent_manager.py` — CRUD de agentes
+- [ ] `hub/agent_process.py` — Subprocesos (start/stop/restart)
+- [ ] `hub/health_checker.py` — Monitoreo continuo
+- [ ] `hub/api/agents.py` — Endpoints REST de gestión
+- [ ] `hub/templates/agent_main.py` — Engine template
+- [ ] `hub/templates/default_config.yaml` — Config template
+
+### Engine base (Sprint 1-2)
+- [ ] LLMAdapter + Ollama (desde v1, reusable)
+- [ ] ToolRegistry + ToolOrchestrator (desde v1, reusable)
+- [ ] Sandbox + Permissions + Audit (desde v1, reusable)
+- [ ] Database (SQLite, desde v1, reusable)
+- [ ] Agent engine con tool calling nativo
+
+### Frontend (Sprint 3)
+- [ ] Dashboard con lista de agentes
+- [ ] Wizard de creación de agente
+- [ ] Chat view (enruta al agente seleccionado)
+- [ ] Logs en vivo
+- [ ] Config editor
