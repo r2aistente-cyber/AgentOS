@@ -1,5 +1,56 @@
 # 🤖 R2 Autonomous — Arquitectura para un agente libre
 
+## Dos productos, un solo motor
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                    MOTOR R2 (compartido)                    │
+│  LLM adapter | Tool orchestrator | Memory | Security Audit  │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+          ┌───────────────┴───────────────┐
+          │                               │
+          ▼                               ▼
+┌─────────────────────┐     ┌─────────────────────────┐
+│                     │     │                         │
+│  R2 CORE (tuyo)    │     │  R2 ENTERPRICE (cliente) │
+│                     │     │                         │
+│  🧠 Todas las tools │     │  🧠 Tools del negocio   │
+│  📱 Todos canales   │     │  💻 Solo webchat        │
+│  🔓 Nivel 3         │     │  🔒 Nivel 1-2          │
+│  🐚 Todo el sistema  │     │  📁 Su sandbox          │
+│  🦀 App Tauri        │     │  🌐 Dashboard web       │
+│  🔌 API integración  │     │  📦 USB instalable      │
+│  ⚙️ Configurable     │     │  🏷️ Brandeable         │
+└─────────────────────┘     └─────────────────────────┘
+```
+
+**Mismo binario. Distinta configuración.**
+
+```yaml
+# R2 Core (Xavier)
+profile: core
+level: 3
+tools: ["*"]
+channels: ["web", "whatsapp", "telegram"]
+sandbox: ["~/Trantor", "~/Documents"]
+app: "tauri-desktop"
+```
+
+```yaml
+# R2 Enterprise (cliente: bufete de abogados)
+profile: enterprise
+level: 1
+specialty: legal-laboral
+tools: ["read_file", "write_file", "search_laws"]
+channels: ["web"]
+sandbox: ["/home/bufete/casos", "/home/bufete/plantillas"]
+app: "web-dashboard"
+brand: "MiBufete AI"
+```
+
+---
+
 ## ¿Qué necesitamos para tener un R2 sin OpenClaw?
 
 ### Componentes mínimos
