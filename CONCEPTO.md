@@ -22,6 +22,11 @@
 │  🦀 App Tauri        │     │  🌐 Dashboard web       │
 │  🔌 API integración  │     │  📦 USB instalable      │
 │  ⚙️ Configurable     │     │  🏷️ Brandeable         │
+│                     │     │                         │
+│  🐙 GitHub completo  │     │  ❌ Sin GitHub          │
+│  🖥️ Terminal/exec   │     │  ❌ Sin exec            │
+│  📦 Build & deploy  │     │  ❌ Sin build           │
+│  🔧 Dev tools        │     │  ❌ Sin dev             │
 └─────────────────────┘     └─────────────────────────┘
 ```
 
@@ -96,15 +101,73 @@ brand: "MiBufete AI"
 | Costo | — | $0 (todo open source) |
 | Control | Tercero | 100% tuyo |
 
-### Lo que ya tenemos
+### R2 Core — Herramientas de desarrollo (para Xavier)
+
+R2 Core no es solo un chat — es un **agente de desarrollo completo**:
+
+### 🐙 GitHub
+
+```yaml
+tools:
+  github:
+    clone_repo:      "Clona un repo"
+    create_repo:     "Crea un repo nuevo"
+    create_pr:       "Crea Pull Request"
+    review_pr:       "Revisa código en un PR"
+    create_issue:    "Crea issue"
+    list_issues:     "Lista issues"
+    commit_push:     "Commit + push"
+    list_branches:   "Muestra ramas"
+    merge_branch:    "Mergea rama"
+    run_actions:     "Trigger GitHub Actions"
+```
+
+Funciona con `gh` CLI o con la API de GitHub directa.
+
+### 🖥️ Sistema (solo R2 Core)
+
+```yaml
+tools:
+  system:
+    exec_command:     "Ejecuta comandos en terminal"
+    run_script:       "Ejecuta scripts"
+    read_process:     "Lee stdout de procesos"
+    file_tree:        "Árbol de directorios"
+    search_code:      "Busca en archivos de código"
+    grep:             "Grep en el workspace"
+```
+
+**Nivel 3 exclusivo.** Solo Xavier. Los clientes nunca tienen esto.
+
+### 📦 Build & Deploy
+
+```yaml
+tools:
+  dev:
+    npm_install:      "Instala dependencias"
+    run_build:        "Ejecuta build"
+    run_tests:        "Ejecuta tests"
+    deploy:           "Deploya a servidor"
+    docker_build:     "Construye imagen Docker"
+    docker_push:      "Push a registry"
+```
+
+### Ejemplo de uso real
 
 ```text
-✅ Ollama instalado y funcionando (Qwen2.5)
-✅ whatsapp-web.js (del Sprint C de BarOS)
-✅ FastAPI + React (stack completo)
-✅ Conocimiento de cómo construir agentes
-✅ Experiencia de 4 productos funcionando
+Xavier: "Clona el repo de R2, crea una rama, 
+         añade el README y haz PR"
+
+R2: 1. gh repo clone r2aistente-cyber/r2-autonomous
+    2. git checkout -b feat/readme
+    3. Crea README.md
+    4. git add + commit + push
+    5. gh pr create --title "README inicial"
 ```
+
+---
+
+## Lo que ya tenemos
 
 ### Lo que faltaría construir
 
