@@ -59,6 +59,7 @@
 
 ```yaml
 POST /api/v1/chat
+  URL: http://localhost:8234/api/v1/chat
   Body:
     session_id: str (opcional, si es nueva omitir)
     message: str

@@ -17,8 +17,12 @@ Trantor verifica que el entorno está listo:
 ✅ Ollama instalado y funcionando
 ✅ ollama pull qwen2.5:7b
 ✅ whatsapp-web.js (del proyecto anterior)
-✅ gh CLI autenticado (r2aistente-cyber)
 ```
+
+**NOTA:** No se instala `gh` CLI. Las tools de GitHub usan la API REST directa
+con el token del keychain (como en proyectos anteriores).
+
+**Puerto del servidor:** `8234` (consistente en todos los docs).
 
 Si todo está OK → arranca Fase 1.
 
@@ -67,27 +71,150 @@ backend/tools/
 ├── __init__.py
 ├── orchestrator.py               ← Ejecuta tools, valida permisos
 ├── registry.py                   ← Registro de tools disponibles
-├── base_tools/
+├── base_tools/                   ← Fase 1 (core)
 │   ├── file_tools.py             ← read, write, list, search
 │   ├── web_tools.py              ← search, fetch
 │   └── memory_tools.py           ← save, get, query
-└── dev_tools/                    ← Solo R2 Core
-    ├── github_tools.py           ← clone, PR, issues, commit
-    ├── system_tools.py           ← exec, run_script (Nivel 3)
+└── dev_tools/                    ← Fase 1.5 (post-core estable)
+    ├── github_tools.py           ← API REST, NO gh CLI
+    ├── system_tools.py           ← exec, whitelist de comandos
     └── build_tools.py            ← npm, build, test, deploy
+```
+
+**IMPORTANTE — GitHub Tools usa API REST, no `gh` CLI:**
+
+```python
+# github_tools.py — usa requests a la API de GitHub
+# NO usa gh CLI (no está instalado en Trantor)
+
+import requests
+
+class GitHubTools:
+    def __init__(self):
+        self.token = os.getenv("GITHUB_TOKEN")  # o desde keychain
+        self.api = "https://api.github.com"
+        self.headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Accept": "application/vnd.github+json"
+        }
+    
+    def clone_repo(self, repo: str, dest: str):
+        # Usa git clone con token en la URL
+        # git clone https://x-access-token:{token}@github.com/{repo}
+        ...
+    
+    def create_pr(self, repo: str, title: str, body: str, head: str, base: str):
+        # POST /repos/{repo}/pulls
+        ...
+    
+    def commit_push(self, repo: str, message: str, branch: str, files: dict):
+        # PUT /repos/{repo}/contents/{path}
+        # o git commit + push con token
+        ...
 ```
 
 **Archivos de referencia:** `DESIGN.md` sección 3 + `CONCEPTO.md` (R2 Core dev tools).
 
-**Checklist:**
+**Checklist — Fase 1 (base tools, 3 días):**
 - [ ] ToolRegistry con registro y validación
 - [ ] ToolOrchestrator.execute(name, args, user) → resultado
 - [ ] Base tools: file_tools (read, write, list, search)
 - [ ] Base tools: web_tools (search_web, fetch_url)
 - [ ] Base tools: memory_tools (save_memory, get_memory, query_db)
-- [ ] Dev tools: github_tools (clone, create_pr, commit_push, create_issue)
-- [ ] Dev tools: system_tools (exec_command solo Nivel 3)
+
+**Checklist — Fase 1.5 (dev tools, después de Fase 1 estable):**
+- [ ] Dev tools: github_tools (clone, create_pr, commit_push, create_issue) ← API REST
+- [ ] Dev tools: system_tools (exec_command con whitelist)
 - [ ] Dev tools: build_tools (npm_install, run_build, run_tests)
+
+### ⚠️ exec_command — Especificación de seguridad
+
+```python
+# ─── WHITELIST DE COMANDOS PERMITIDOS ───────────────
+# Cualquier comando FUERA de esta lista es rechazado.
+
+ALLOWED_COMMANDS = {
+    # Navegación
+    "cd":        "Cambiar directorio",
+    "ls":        "Listar archivos",
+    "pwd":       "Directorio actual",
+    "cat":       "Ver archivo",
+    "head":      "Primeras líneas",
+    "tail":      "Últimas líneas",
+    "wc":        "Contar líneas/palabras",
+    "find":      "Buscar archivos",
+    "grep":      "Buscar texto en archivos",
+    
+    # Git
+    "git":       "Operaciones de git",
+    
+    # Desarrollo
+    "npm":       "Node package manager",
+    "pnpm":      "Package manager",
+    "python":    "Python",
+    "pip":       "Python packages",
+    "node":      "Node.js",
+    
+    # Utilidades
+    "echo":      "Print texto",
+    "mkdir":     "Crear directorio",
+    "cp":        "Copiar archivo",
+    "mv":        "Mover/renombrar",
+    "rm":        "Eliminar archivo (no -rf)",
+    "tar":       "Comprimir/extraer",
+    "zip":       "Zip",
+    "unzip":     "Unzip",
+    "curl":      "HTTP requests",
+    "wget":      "Descargar",
+    "ssh":       "SSH (solo hosts conocidos)",
+    "scp":       "Copy over SSH",
+}
+
+# ─── COMANDOS PROHIBIDOS SIEMPRE ────────────────────
+# Nunca se ejecutan, aunque estén en la whitelist con -rf
+
+# rm -rf /            → BLOQUEADO
+# sudo cualquier cosa  → BLOQUEADO (no está en whitelist)
+# chmod 777           → BLOQUEADO
+# :(){ :|:& };:       → BLOQUEADO (fork bomb)
+# pipes sin control   → Solo pipes simples (cmd1 | cmd2)
+
+# ─── VALIDACIÓN ──────────────────────────────────────
+
+def validate_command(command: str) -> tuple[bool, str]:
+    """
+    Valida que el comando sea seguro antes de ejecutarlo.
+    
+    Returns: (permitido, razón_bloqueo)
+    """
+    parts = shlex.split(command)
+    base = parts[0] if parts else ""
+    
+    # 1. ¿Está en la whitelist?
+    if base not in ALLOWED_COMMANDS:
+        return False, f"Comando no permitido: {base}"
+    
+    # 2. ¿Tiene flags peligrosos?
+    full = command.lower()
+    if "rm -rf /" in full or "rm -rf /*" in full:
+        return False, "rm -rf / no permitido"
+    if "sudo" in full:
+        return False, "sudo no permitido"
+    
+    # 3. ¿Está dentro del sandbox de directorios?
+    # Si el comando incluye rutas, verificar que no salgan
+    
+    return True, ""
+```
+
+**Reglas:**
+1. Solo los comandos en `ALLOWED_COMMANDS` pueden ejecutarse
+2. Flags peligrosos se bloquean (`rm -rf /`, `sudo`, `chmod 777`)
+3. `sudo` ni siquiera está en la whitelist
+4. Múltiples comandos con `&&`, `;`, `|` se rechazan
+5. Siempre pregunta confirmación antes de ejecutar (Nivel 3 no exime)
+
+Este sistema reemplaza el `exec` crudo de OpenClaw. Es controlado, auditable y seguro.
 
 ### 1.4 Seguridad
 
