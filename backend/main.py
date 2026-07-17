@@ -11,15 +11,33 @@ import backend.config as config
 from backend.memory.db import init_db
 
 # Registrar todas las tools al arrancar
-import backend.tools.base_tools.file_tools    # noqa: F401
-import backend.tools.base_tools.web_tools     # noqa: F401
-import backend.tools.base_tools.memory_tools  # noqa: F401
+import backend.tools.base_tools.file_tools      # noqa: F401
+import backend.tools.base_tools.web_tools       # noqa: F401
+import backend.tools.base_tools.memory_tools    # noqa: F401
+# Fase 1.5 — dev tools
+import backend.tools.dev_tools.github_tools     # noqa: F401
+import backend.tools.dev_tools.system_tools     # noqa: F401
+import backend.tools.dev_tools.build_tools      # noqa: F401
+# Fase 4 — comms tools
+import backend.tools.comms_tools                # noqa: F401
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    # Iniciar WhatsApp si está habilitado en config
+    if config.get("channels.whatsapp.enabled", False):
+        from backend.channels.whatsapp import whatsapp
+        try:
+            await whatsapp.connect()
+        except Exception as e:
+            import logging
+            logging.getLogger("r2").warning(f"WhatsApp no pudo iniciar: {e}")
     yield
+    # Cleanup
+    if config.get("channels.whatsapp.enabled", False):
+        from backend.channels.whatsapp import whatsapp
+        await whatsapp.stop()
 
 
 app = FastAPI(title="R2 Autonomous", version="1.1", lifespan=lifespan)
@@ -38,12 +56,14 @@ from backend.api.files import router as files_router
 from backend.api.admin import router as admin_router
 from backend.api.specialties import router as specialties_router
 from backend.api.models import router as models_router
+from backend.api.channels import router as channels_router
 
 app.include_router(sessions_router)
 app.include_router(files_router)
 app.include_router(admin_router)
 app.include_router(specialties_router)
 app.include_router(models_router)
+app.include_router(channels_router)
 
 
 # ─── Chat (inline — es el endpoint principal) ─────────────────────────────
