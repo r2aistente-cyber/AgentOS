@@ -75,7 +75,7 @@ fn setup_global_shortcut<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
     let shortcut = Shortcut::new(Some(Modifiers::CONTROL), Code::Space);
     let handle = app.handle().clone();
 
-    app.handle().global_shortcut().on_shortcut(shortcut, move |_app, _shortcut, _event| {
+    if let Err(e) = app.handle().global_shortcut().on_shortcut(shortcut, move |_app, _shortcut, _event| {
         if let Some(w) = handle.get_webview_window("main") {
             if w.is_visible().unwrap_or(false) {
                 let _ = w.hide();
@@ -84,7 +84,9 @@ fn setup_global_shortcut<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
                 let _ = w.set_focus();
             }
         }
-    })?;
+    }) {
+        eprintln!("[R2] No se pudo registrar Ctrl+Space: {e}");
+    }
 
     Ok(())
 }
