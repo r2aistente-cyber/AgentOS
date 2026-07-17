@@ -3,13 +3,12 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 import backend.config as config
 from backend.memory.db import init_db
-from backend.memory import session as session_store
 
 # Registrar todas las tools al arrancar
 import backend.tools.base_tools.file_tools    # noqa: F401
@@ -32,8 +31,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ─── Routers ──────────────────────────────────────────────────────────────
 
-# ─── Schemas ──────────────────────────────────────────────────────────────
+from backend.api.sessions import router as sessions_router
+from backend.api.files import router as files_router
+from backend.api.admin import router as admin_router
+from backend.api.specialties import router as specialties_router
+from backend.api.models import router as models_router
+
+app.include_router(sessions_router)
+app.include_router(files_router)
+app.include_router(admin_router)
+app.include_router(specialties_router)
+app.include_router(models_router)
+
+
+# ─── Chat (inline — es el endpoint principal) ─────────────────────────────
 
 class ChatRequest(BaseModel):
     message: str
@@ -49,9 +62,7 @@ class ChatResponse(BaseModel):
     tokens: int = 0
 
 
-# ─── Endpoints ────────────────────────────────────────────────────────────
-
-@app.post("/api/v1/chat", response_model=ChatResponse)
+@app.post("/api/v1/chat", response_model=ChatResponse, tags=["chat"])
 async def chat(req: ChatRequest):
     from backend.api.chat import process_message
     result = await process_message(
@@ -63,45 +74,9 @@ async def chat(req: ChatRequest):
     return ChatResponse(**result)
 
 
-@app.get("/api/v1/sessions")
-async def list_sessions(user_id: str = "xavier"):
-    return await session_store.list_sessions(user_id)
+# ─── Health ───────────────────────────────────────────────────────────────
 
-
-@app.post("/api/v1/sessions/new")
-async def new_session(user_id: str = "xavier", specialty_id: str = "core"):
-    sid = await session_store.create_session(user_id, specialty_id)
-    return {"session_id": sid}
-
-
-@app.get("/api/v1/sessions/{session_id}")
-async def get_session(session_id: str):
-    s = await session_store.get_session(session_id)
-    if not s:
-        raise HTTPException(404, "Sesión no encontrada")
-    history = await session_store.get_history(session_id, limit=100)
-    return {"session": s, "messages": history}
-
-
-@app.delete("/api/v1/sessions/{session_id}")
-async def archive_session(session_id: str):
-    await session_store.archive_session(session_id)
-    return {"ok": True}
-
-
-@app.get("/api/v1/models")
-async def list_models():
-    import httpx
-    host = config.get("llm.host", "http://localhost:11434")
-    try:
-        async with httpx.AsyncClient(timeout=5) as client:
-            r = await client.get(f"{host}/api/tags")
-            return r.json()
-    except Exception as e:
-        raise HTTPException(503, f"Ollama no disponible: {e}")
-
-
-@app.get("/health")
+@app.get("/health", tags=["system"])
 async def health():
     from backend.llm.ollama import OllamaAdapter
     ok = await OllamaAdapter().ping()
