@@ -51,6 +51,7 @@ async def process_message(message: str, session_id: str | None, user_id: str = "
             messages.append({
                 "role": "tool",
                 "tool_call_id": tc.id,
+                "name": tc.name,
                 "content": json.dumps(result, ensure_ascii=False),
             })
 

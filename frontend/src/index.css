@@ -8,3 +8,16 @@ body {
   color: #f1f5f9;
   font-family: 'Inter', system-ui, sans-serif;
 }
+
+/* #4: permitir seleccionar/copiar texto (WebView2 a veces lo bloquea).
+   Controles siguen sin seleccionarse para no estorbar. */
+.select-text,
+.select-text * {
+  -webkit-user-select: text;
+  user-select: text;
+  cursor: text;
+}
+button, a {
+  -webkit-user-select: none;
+  user-select: none;
+}

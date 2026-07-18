@@ -61,6 +61,19 @@ export default function ChatView({ agent: initialAgent, onBack }: Props) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, sending])
 
+  // #1: refleja el estado real del agente. Si lo detienes desde el Hub, la
+  // ventana lo detecta (deshabilita input + muestra aviso) en pocos segundos.
+  useEffect(() => {
+    const id = setInterval(async () => {
+      try {
+        setAgent(await getAgent(initialAgent.name))
+      } catch {
+        /* Hub caído o agente borrado: se ignora hasta el próximo tick */
+      }
+    }, 4000)
+    return () => clearInterval(id)
+  }, [initialAgent.name])
+
   // Inicia el agente y espera (poll) hasta que esté en línea.
   const handleStart = async () => {
     setStarting(true)
@@ -111,7 +124,7 @@ export default function ChatView({ agent: initialAgent, onBack }: Props) {
   }
 
   return (
-    <div className="mx-auto flex h-[calc(100vh-6rem)] max-w-2xl flex-col">
+    <div className="flex h-full w-full flex-col">
       <div className="mb-3 flex items-center gap-3">
         {onBack && (
           <button onClick={onBack} className="text-sm text-slate-400 hover:text-slate-200">
@@ -152,7 +165,7 @@ export default function ChatView({ agent: initialAgent, onBack }: Props) {
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div
-              className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm ${
+              className={`max-w-[80%] select-text rounded-2xl px-4 py-2 text-sm ${
                 m.role === 'user'
                   ? 'bg-indigo-600 text-white'
                   : 'bg-slate-800 text-slate-100'

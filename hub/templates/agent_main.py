@@ -30,6 +30,14 @@ _START = time.time()
 async def lifespan(app: FastAPI):
     await init_db()
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+    # #3: pre-cargar el modelo local en background para evitar el cold-start
+    # (~80s) en el primer mensaje del usuario. Solo aplica a Ollama.
+    if config.get("llm.provider") == "ollama":
+        import asyncio
+
+        from llm.ollama import OllamaAdapter
+
+        asyncio.create_task(OllamaAdapter().warmup())
     yield
 
 

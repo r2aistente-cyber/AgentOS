@@ -1,10 +1,45 @@
 """Adapter Ollama (function calling nativo)."""
 from __future__ import annotations
 
+import json
+
 import httpx
 
 import agent_config as config
 from llm.adapter import LLMAdapter, LLMResponse, ToolCall
+
+
+def _to_ollama_messages(messages: list[dict]) -> list[dict]:
+    """Normaliza el historial interno (estilo OpenAI) al formato de Ollama.
+
+    Ollama exige que `tool_calls[].function.arguments` sea un OBJETO (no un
+    string JSON) y no usa `tool_call_id`; los resultados de tool van como
+    role=tool con `content` (+ `tool_name` opcional). Sin esto, la 2ª ronda
+    del loop de tools rompía con 400 Bad Request.
+    """
+    out: list[dict] = []
+    for m in messages:
+        role = m.get("role")
+        if role == "assistant" and m.get("tool_calls"):
+            tcs = []
+            for tc in m["tool_calls"]:
+                fn = tc.get("function", {})
+                args = fn.get("arguments")
+                if isinstance(args, str):
+                    try:
+                        args = json.loads(args)
+                    except (ValueError, TypeError):
+                        args = {}
+                tcs.append({"function": {"name": fn.get("name"), "arguments": args or {}}})
+            out.append({"role": "assistant", "content": m.get("content") or "", "tool_calls": tcs})
+        elif role == "tool":
+            entry = {"role": "tool", "content": m.get("content", "")}
+            if m.get("name"):
+                entry["tool_name"] = m["name"]
+            out.append(entry)
+        else:
+            out.append({"role": role, "content": m.get("content", "")})
+    return out
 
 
 class OllamaAdapter(LLMAdapter):
@@ -13,6 +48,23 @@ class OllamaAdapter(LLMAdapter):
         self._model = config.get("llm.model", "qwen2.5:latest")
         self._temperature = config.get("llm.temperature", 0.7)
         self._max_tokens = config.get("llm.max_tokens", 4096)
+        # Mantener el modelo cargado en memoria para no pagar el cold-start (~80s)
+        # en cada primer mensaje. Configurable con llm.keep_alive.
+        self._keep_alive = config.get("llm.keep_alive", "30m")
+
+    async def warmup(self) -> None:
+        """Carga el modelo en memoria (se llama en background al arrancar)."""
+        try:
+            async with httpx.AsyncClient(timeout=300) as client:
+                await client.post(f"{self._host}/api/chat", json={
+                    "model": self._model,
+                    "messages": [{"role": "user", "content": "hi"}],
+                    "stream": False,
+                    "keep_alive": self._keep_alive,
+                    "options": {"num_predict": 1},
+                })
+        except Exception:
+            pass
 
     async def ping(self) -> bool:
         try:
@@ -23,13 +75,14 @@ class OllamaAdapter(LLMAdapter):
             return False
 
     async def chat(self, messages, tools=None, system=None) -> LLMResponse:
-        msgs = list(messages)
+        msgs = _to_ollama_messages(messages)
         if system:
             msgs = [{"role": "system", "content": system}, *msgs]
         payload: dict = {
             "model": self._model,
             "messages": msgs,
             "stream": False,
+            "keep_alive": self._keep_alive,
             "options": {"temperature": self._temperature, "num_predict": self._max_tokens},
         }
         if tools:
