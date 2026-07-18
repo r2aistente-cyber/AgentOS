@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from hub import config
 from hub.api.agents import manager, router as agents_router
 from hub.api.admin import router as admin_router
+from hub.api.fs import router as fs_router
 from hub.health_checker import HealthChecker
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
@@ -47,6 +48,7 @@ app.add_middleware(
 
 app.include_router(agents_router)
 app.include_router(admin_router)
+app.include_router(fs_router)
 
 
 @app.get("/", tags=["system"])

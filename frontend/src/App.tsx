@@ -1,143 +1,129 @@
-import { useEffect, useRef, useState } from 'react'
-import { sendMessage, listSessions, newSession, getSession, deleteSession, uploadFile } from './api'
-import type { Session } from './api'
-import Sidebar from './components/Sidebar'
-import ChatBubble from './components/ChatBubble'
-import type { ChatMessage } from './components/ChatBubble'
-import ChatInput from './components/ChatInput'
+import { useEffect, useState } from 'react'
+import { getHubInfo, type AgentInfo } from './api'
+import Dashboard from './views/Dashboard'
+import CreateWizard from './views/CreateWizard'
+import AgentDetail from './views/AgentDetail'
+import LogsView from './views/LogsView'
 import './index.css'
 
+type View =
+  | { name: 'dashboard' }
+  | { name: 'create' }
+  | { name: 'detail'; agent: AgentInfo }
+  | { name: 'logs'; agent: AgentInfo }
+
+// El chat abre en su propia ventana flotante (fuera del Hub), así se pueden
+// tener varios agentes en pantalla a la vez. Reusa la ventana por agente.
+function openChatWindow(a: AgentInfo) {
+  // Dentro del shell de escritorio (pywebview): ventana nativa vía API Python.
+  const pw = (window as unknown as { pywebview?: { api?: { open_chat?: (n: string) => void } } }).pywebview
+  if (pw?.api?.open_chat) {
+    pw.api.open_chat(a.name)
+    return
+  }
+  // Fuera del shell (dev en navegador): popup normal.
+  window.open(
+    `/chat?agent=${encodeURIComponent(a.name)}`,
+    `chat_${a.name}`,
+    'popup=yes,width=440,height=680',
+  )
+}
+
+const NAV = [
+  { key: 'dashboard', icon: '🏠', label: 'Dashboard' },
+  { key: 'create', icon: '➕', label: 'Crear Agente' },
+] as const
+
 export default function App() {
-  const [sessions, setSessions] = useState<Session[]>([])
-  const [activeId, setActiveId] = useState<string | null>(null)
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [loading, setLoading] = useState(false)
-  const bottomRef = useRef<HTMLDivElement>(null)
+  const [view, setView] = useState<View>({ name: 'dashboard' })
+  const [hubUp, setHubUp] = useState<boolean | null>(null)
 
   useEffect(() => {
-    listSessions().then((s) => {
-      setSessions(s)
-      if (s.length > 0) loadSession(s[0].id)
-    })
+    const ping = () =>
+      getHubInfo()
+        .then(() => setHubUp(true))
+        .catch(() => setHubUp(false))
+    ping()
+    const id = setInterval(ping, 10000)
+    return () => clearInterval(id)
   }, [])
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
-
-  const loadSession = async (id: string) => {
-    setActiveId(id)
-    try {
-      const data = await getSession(id)
-      setMessages(
-        data.messages
-          .filter((m) => m.role === 'user' || m.role === 'assistant')
-          .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
-      )
-    } catch {
-      setMessages([])
-    }
-  }
-
-  const handleNew = async () => {
-    const id = await newSession('core', 'Nueva sesión')
-    const updated = await listSessions()
-    setSessions(updated)
-    setActiveId(id)
-    setMessages([])
-  }
-
-  const handleDelete = async (id: string) => {
-    await deleteSession(id)
-    const updated = await listSessions()
-    setSessions(updated)
-    if (activeId === id) {
-      if (updated.length > 0) loadSession(updated[0].id)
-      else { setActiveId(null); setMessages([]) }
-    }
-  }
-
-  const handleSend = async (text: string, file?: File) => {
-    if (loading) return
-
-    let sessionId = activeId
-    if (!sessionId) {
-      sessionId = await newSession()
-      const updated = await listSessions()
-      setSessions(updated)
-      setActiveId(sessionId)
-    }
-
-    let message = text
-    if (file) {
-      try {
-        const uploaded = await uploadFile(file)
-        message = `${text}\n\n[Archivo subido: ${uploaded.filename} — id: ${uploaded.file_id}]`
-      } catch {
-        message = `${text}\n\n[Error al subir archivo]`
-      }
-    }
-
-    setMessages((prev) => [
-      ...prev,
-      { role: 'user', content: message },
-      { role: 'assistant', content: '', pending: true },
-    ])
-    setLoading(true)
-
-    try {
-      const res = await sendMessage(message, sessionId)
-      setMessages((prev) => [
-        ...prev.slice(0, -1),
-        { role: 'assistant', content: res.reply, tools_used: res.tools_used },
-      ])
-      const updated = await listSessions()
-      setSessions(updated)
-    } catch (err) {
-      setMessages((prev) => [
-        ...prev.slice(0, -1),
-        { role: 'assistant', content: `⚠️ Error: ${err}` },
-      ])
-    } finally {
-      setLoading(false)
-    }
-  }
+  const goDash = () => setView({ name: 'dashboard' })
 
   return (
-    <div className="flex h-screen bg-gray-950 overflow-hidden">
-      <Sidebar
-        sessions={sessions}
-        activeId={activeId}
-        onSelect={loadSession}
-        onNew={handleNew}
-        onDelete={handleDelete}
-      />
+    <div className="flex h-screen overflow-hidden bg-slate-950 text-slate-100">
+      {/* Sidebar */}
+      <aside className="flex w-56 shrink-0 flex-col border-r border-slate-800 bg-slate-900/40 p-4">
+        <div className="mb-6 flex items-center gap-2 px-1">
+          <span className="text-2xl">🤖</span>
+          <div>
+            <h1 className="text-sm font-bold text-slate-100">R2 Hub</h1>
+            <p className="text-[11px] text-slate-500">AgentOS v2.0</p>
+          </div>
+        </div>
 
-      <div className="flex flex-col flex-1 min-w-0">
-        <div className="px-4 py-3 border-b border-gray-800 flex items-center gap-2 bg-gray-900/50">
-          <span className="text-violet-400 text-sm font-medium">
-            {sessions.find((s) => s.id === activeId)?.title ?? 'R2 Autonomous'}
+        <nav className="flex flex-col gap-1">
+          {NAV.map((n) => {
+            const active = view.name === n.key
+            return (
+              <button
+                key={n.key}
+                onClick={() => setView({ name: n.key } as View)}
+                className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition ${
+                  active
+                    ? 'bg-indigo-600/20 text-indigo-300'
+                    : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                }`}
+              >
+                <span>{n.icon}</span>
+                {n.label}
+              </button>
+            )
+          })}
+        </nav>
+
+        <div className="mt-auto flex items-center gap-2 px-1 text-[11px]">
+          <span
+            className={`h-2 w-2 rounded-full ${
+              hubUp === null ? 'bg-slate-600' : hubUp ? 'bg-emerald-400' : 'bg-rose-500'
+            }`}
+          />
+          <span className="text-slate-500">
+            Hub {hubUp === null ? '…' : hubUp ? 'en línea' : 'sin conexión'}
           </span>
-          <span className="text-gray-600 text-xs ml-auto">qwen2.5:latest · :8234</span>
         </div>
+      </aside>
 
-        <div className="flex-1 overflow-y-auto px-4 py-4">
-          {messages.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-full text-center select-none">
-              <div className="text-5xl mb-3">🤖</div>
-              <h2 className="text-gray-200 font-semibold text-lg mb-1">R2 Autonomous</h2>
-              <p className="text-gray-500 text-sm">Tu agente personal. 100% local.</p>
-              <p className="text-gray-700 text-xs mt-1">Ollama · qwen2.5:latest</p>
-            </div>
-          )}
-          {messages.map((msg, i) => (
-            <ChatBubble key={i} msg={msg} />
-          ))}
-          <div ref={bottomRef} />
-        </div>
+      {/* Contenido */}
+      <main className="flex-1 overflow-y-auto p-8">
+        {hubUp === false && (
+          <div className="mx-auto mb-6 max-w-5xl rounded-lg border border-rose-800 bg-rose-950/50 px-4 py-3 text-sm text-rose-300">
+            No hay conexión con el Hub (<code>http://localhost:8234</code>). Arráncalo con{' '}
+            <code className="rounded bg-slate-800 px-1 py-0.5">python -m hub.main</code>.
+          </div>
+        )}
 
-        <ChatInput onSend={handleSend} disabled={loading} />
-      </div>
+        {view.name === 'dashboard' && (
+          <Dashboard
+            onCreate={() => setView({ name: 'create' })}
+            onChat={openChatWindow}
+            onConfig={(a) => setView({ name: 'detail', agent: a })}
+            onLogs={(a) => setView({ name: 'logs', agent: a })}
+          />
+        )}
+        {view.name === 'create' && (
+          <CreateWizard onDone={goDash} onCancel={goDash} />
+        )}
+        {view.name === 'detail' && (
+          <AgentDetail
+            agent={view.agent}
+            onBack={goDash}
+            onDeleted={goDash}
+            onChanged={goDash}
+          />
+        )}
+        {view.name === 'logs' && <LogsView agent={view.agent} onBack={goDash} />}
+      </main>
     </div>
   )
 }
