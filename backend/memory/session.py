@@ -65,7 +65,7 @@ async def add_message(
 async def get_history(session_id: str, limit: int = 30) -> list[dict]:
     async with get_db() as db:
         async with db.execute(
-            "SELECT role, content FROM messages WHERE session_id=? ORDER BY created_at DESC LIMIT ?",
+            "SELECT role, content FROM messages WHERE session_id=? ORDER BY rowid DESC LIMIT ?",
             (session_id, limit),
         ) as cur:
             rows = await cur.fetchall()
