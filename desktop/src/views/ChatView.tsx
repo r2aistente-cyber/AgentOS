@@ -3,12 +3,14 @@ import {
   chatWithAgent,
   createAgentSession,
   getAgent,
+  getAgentModels,
   getSessionMessages,
   listAgentSessions,
   startAgent,
   uploadToAgent,
   type AgentInfo,
   type AgentSession,
+  type ModelOption,
 } from '../api'
 
 interface Props {
@@ -34,6 +36,8 @@ export default function ChatView({ agent: initialAgent, onBack }: Props) {
   const [input, setInput] = useState('')
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [sessions, setSessions] = useState<AgentSession[]>([])
+  const [models, setModels] = useState<ModelOption[]>([])
+  const [activeModel, setActiveModel] = useState<string>('')
   const [context, setContext] = useState<Ctx | null>(null)
   const [sending, setSending] = useState(false)
   const [starting, setStarting] = useState(false)
@@ -63,6 +67,7 @@ export default function ChatView({ agent: initialAgent, onBack }: Props) {
   }, [initialAgent.name])
 
   // #6/#12: al estar en línea, carga las sesiones y reabre la más reciente.
+  // #11: carga la lista de modelos configurados y fija el activo por defecto.
   useEffect(() => {
     if (!online) return
     let cancelled = false
@@ -74,6 +79,14 @@ export default function ChatView({ agent: initialAgent, onBack }: Props) {
         if (list.length > 0 && !sessionId) await loadSession(list[0].id)
       } catch {
         /* agente recién iniciado sin sesiones aún */
+      }
+      try {
+        const m = await getAgentModels(agent.port)
+        if (cancelled) return
+        setModels(m.models)
+        setActiveModel((cur) => cur || m.default)
+      } catch {
+        /* sin lista de modelos: se usa el default del agente */
       }
     })()
     return () => {
@@ -180,7 +193,7 @@ export default function ChatView({ agent: initialAgent, onBack }: Props) {
     setSending(true)
     const wasNew = !sessionId
     try {
-      const res = await chatWithAgent(agent.port, payload, sessionId)
+      const res = await chatWithAgent(agent.port, payload, sessionId, activeModel || null)
       setSessionId(res.session_id)
       if (res.context_tokens != null && res.context_limit != null) {
         setContext({ tokens: res.context_tokens, limit: res.context_limit })
@@ -216,8 +229,25 @@ export default function ChatView({ agent: initialAgent, onBack }: Props) {
           <span className={`h-2 w-2 rounded-full ${online ? 'bg-emerald-400' : 'bg-slate-500'}`} />
         </div>
 
-        {/* #12: selector de sesión de trabajo */}
         <div className="ml-auto flex items-center gap-2">
+          {/* #11: selector de modelo (cambia en caliente, sin reiniciar) */}
+          {models.length > 0 && (
+            <select
+              value={activeModel}
+              onChange={(e) => setActiveModel(e.target.value)}
+              disabled={!online}
+              className="max-w-[11rem] rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-indigo-200 outline-none disabled:opacity-40"
+              title="Modelo (cambia sin reiniciar)"
+            >
+              {models.map((m) => (
+                <option key={m.ref} value={m.ref}>
+                  🧠 {m.label}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {/* #12: selector de sesión de trabajo */}
           <select
             value={sessionId ?? ''}
             onChange={(e) => e.target.value && loadSession(e.target.value)}

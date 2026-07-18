@@ -13,11 +13,17 @@ personality:
 system_prompt: "Eres un asistente útil."
 
 llm:
-  provider: "ollama"
-  model: "qwen2.5:latest"
+  provider: "ollama"          # proveedor por defecto
+  model: "qwen2.5:latest"     # modelo por defecto
   host: "http://localhost:11434"
   temperature: 0.7
-  # api_key: para OpenAI / Anthropic / OpenCode (Sprint 2)
+  num_ctx: 8192               # ventana de contexto (medidor + Ollama)
+  # api_key: para OpenAI / Anthropic / OpenCode (env: OPENCODE_API_KEY, etc.)
+  # #10: lista de modelos disponibles para elegir en el chat (#11).
+  # opencode-go usa OPENCODE_API_KEY (catálogo Go: deepseek-v4-flash, kimi-k2.6…)
+  models:
+    - {provider: "ollama", model: "qwen2.5:latest", label: "Qwen 2.5"}
+    # - {provider: "opencode-go", model: "deepseek-v4-flash", label: "DeepSeek V4 Flash"}
 
 tools:
   allow:

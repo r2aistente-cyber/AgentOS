@@ -10,19 +10,21 @@ import httpx
 import agent_config as config
 from llm.adapter import LLMAdapter, LLMResponse, ToolCall
 
-# base_url y secreto por proveedor
+# base_url y secreto por proveedor. opencode-go comparte credencial y host con
+# opencode (catálogo Go); el modelo lo distingue (ver providers/opencode-go).
 _PROVIDERS = {
-    "openai":   ("https://api.openai.com/v1", "openai_key"),
-    "opencode": ("https://opencode.ai/api/v1", "opencode_key"),
+    "openai":      ("https://api.openai.com/v1", "openai_key"),
+    "opencode":    ("https://opencode.ai/api/v1", "opencode_key"),
+    "opencode-go": ("https://opencode.ai/api/v1", "opencode_key"),
 }
 
 
 class OpenAICompatAdapter(LLMAdapter):
-    def __init__(self, provider: str = "openai") -> None:
+    def __init__(self, provider: str = "openai", model: str | None = None) -> None:
         base, secret_name = _PROVIDERS.get(provider, (None, "openai_key"))
         self._base = config.get("llm.host") or base or "https://api.openai.com/v1"
         self._base = self._base.rstrip("/")
-        self._model = config.get("llm.model", "gpt-4o-mini")
+        self._model = model or config.get("llm.model", "gpt-4o-mini")
         self._temperature = config.get("llm.temperature", 0.7)
         self._max_tokens = config.get("llm.max_tokens", 4096)
         self._key = config.get_secret(secret_name)

@@ -49,6 +49,7 @@ class ChatRequest(BaseModel):
     message: str
     session_id: str | None = None
     user_id: str = "default"
+    model: str | None = None  # #11: ref "provider/model" para cambiar en caliente
 
 
 @app.get("/api/v1/health")
@@ -69,7 +70,33 @@ async def health() -> dict:
 @app.post("/api/v1/chat/simple")
 async def chat(req: ChatRequest) -> dict:
     from engine import process_message
-    return await process_message(req.message, req.session_id, req.user_id)
+    return await process_message(req.message, req.session_id, req.user_id, req.model)
+
+
+@app.get("/api/v1/models")
+async def models() -> dict:
+    """#10/#11: modelos configurados para este agente + cuál es el default.
+
+    Lee llm.models (lista de {provider, model, label}); si no existe, sintetiza
+    una sola entrada desde llm.provider / llm.model.
+    """
+    llm = config.get("llm", {}) or {}
+    entries = llm.get("models") or []
+    if not entries:
+        entries = [{"provider": llm.get("provider", "ollama"), "model": llm.get("model", "")}]
+    out = []
+    for e in entries:
+        provider = e.get("provider", "ollama")
+        model = e.get("model", "")
+        ref = f"{provider}/{model}"
+        out.append({
+            "ref": ref,
+            "provider": provider,
+            "model": model,
+            "label": e.get("label") or model or ref,
+        })
+    default_ref = f"{llm.get('provider', 'ollama')}/{llm.get('model', '')}"
+    return {"models": out, "default": default_ref}
 
 
 @app.get("/api/v1/sessions")

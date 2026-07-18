@@ -33,6 +33,8 @@ export interface AgentConfig {
     host?: string
     temperature?: number
     api_key?: string
+    num_ctx?: number
+    models?: { provider: string; model: string; label?: string }[]
   }
   tools?: { allow?: string[] }
   security?: { level?: number }
@@ -165,13 +167,29 @@ export async function chatWithAgent(
   port: number,
   message: string,
   sessionId: string | null,
+  model?: string | null,
 ): Promise<ChatResponse> {
   const res = await fetch(`http://localhost:${port}/api/v1/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, session_id: sessionId }),
+    body: JSON.stringify({ message, session_id: sessionId, model: model || null }),
   })
   if (!res.ok) throw new Error(`Chat error: ${res.status}`)
+  return res.json()
+}
+
+export interface ModelOption {
+  ref: string
+  provider: string
+  model: string
+  label: string
+}
+
+export async function getAgentModels(
+  port: number,
+): Promise<{ models: ModelOption[]; default: string }> {
+  const res = await fetch(`http://localhost:${port}/api/v1/models`)
+  if (!res.ok) throw new Error(`Models error: ${res.status}`)
   return res.json()
 }
 

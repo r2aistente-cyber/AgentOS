@@ -14,9 +14,9 @@ _VERSION = "2023-06-01"
 
 
 class AnthropicAdapter(LLMAdapter):
-    def __init__(self) -> None:
+    def __init__(self, model: str | None = None) -> None:
         self._base = (config.get("llm.host") or "https://api.anthropic.com").rstrip("/")
-        self._model = config.get("llm.model", "claude-opus-4-8")
+        self._model = model or config.get("llm.model", "claude-opus-4-8")
         self._temperature = config.get("llm.temperature", 0.7)
         self._max_tokens = config.get("llm.max_tokens", 4096)
         self._key = config.get_secret("anthropic_key")

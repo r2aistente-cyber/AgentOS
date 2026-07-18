@@ -43,9 +43,9 @@ def _to_ollama_messages(messages: list[dict]) -> list[dict]:
 
 
 class OllamaAdapter(LLMAdapter):
-    def __init__(self) -> None:
+    def __init__(self, model: str | None = None) -> None:
         self._host = config.get("llm.host", "http://localhost:11434")
-        self._model = config.get("llm.model", "qwen2.5:latest")
+        self._model = model or config.get("llm.model", "qwen2.5:latest")
         self._temperature = config.get("llm.temperature", 0.7)
         self._max_tokens = config.get("llm.max_tokens", 4096)
         self._num_ctx = config.get("llm.num_ctx", 8192)

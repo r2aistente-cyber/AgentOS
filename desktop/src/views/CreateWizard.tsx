@@ -9,7 +9,18 @@ interface Props {
 
 const STEPS = ['Identidad', 'Personalidad', 'LLM', 'Tools y canales', 'Resumen']
 
-const PROVIDERS = ['ollama', 'openai', 'anthropic', 'opencode', 'custom', 'mock']
+const PROVIDERS = ['ollama', 'openai', 'anthropic', 'opencode', 'opencode-go', 'custom', 'mock']
+
+// Catálogo del catálogo Go de OpenCode (suscripción, usa OPENCODE_API_KEY).
+const OPENCODE_GO_MODELS = [
+  'deepseek-v4-flash',
+  'deepseek-v4-pro',
+  'kimi-k2.6',
+  'kimi-k2.7-code',
+  'glm-5.2',
+  'minimax-m2.7',
+  'qwen3.6-plus',
+]
 const ALL_TOOLS = [
   'read_file',
   'write_file',
@@ -34,6 +45,7 @@ interface Form {
   host: string
   temperature: number
   api_key: string
+  extra_models: { provider: string; model: string }[]
   tools: string[]
   web: boolean
   whatsapp: boolean
@@ -57,6 +69,7 @@ const DEFAULT: Form = {
   host: 'http://localhost:11434',
   temperature: 0.7,
   api_key: '',
+  extra_models: [],
   tools: ['read_file', 'write_file', 'list_files', 'search_web'],
   web: true,
   whatsapp: false,
@@ -98,7 +111,7 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((p) => ({ ...p, [k]: v }))
 
   const nameValid = /^[a-zA-Z0-9_-]{2,40}$/.test(f.name)
-  const needsKey = ['openai', 'anthropic', 'opencode'].includes(f.provider)
+  const needsKey = ['openai', 'anthropic', 'opencode', 'opencode-go'].includes(f.provider)
 
   const canNext = () => {
     if (step === 0) return nameValid
@@ -122,6 +135,13 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
         host: f.host,
         temperature: f.temperature,
         ...(needsKey && f.api_key ? { api_key: f.api_key } : {}),
+        // #10: modelos disponibles para elegir en el chat (#11).
+        models: [
+          { provider: f.provider, model: f.model, label: f.model },
+          ...f.extra_models
+            .filter((m) => m.model.trim())
+            .map((m) => ({ provider: m.provider, model: m.model.trim(), label: m.model.trim() })),
+        ],
       },
       tools: { allow: f.tools },
       security: { level: f.security_level },
@@ -322,6 +342,69 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
                 className="w-full accent-indigo-500"
               />
             </Field>
+
+            {/* #10: modelos adicionales para poder elegir en el chat (#11) */}
+            <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-sm font-medium text-slate-300">Modelos adicionales</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    set('extra_models', [...f.extra_models, { provider: 'ollama', model: '' }])
+                  }
+                  className="rounded-md border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-200 hover:bg-slate-700"
+                >
+                  ＋ Agregar
+                </button>
+              </div>
+              <p className="mb-2 text-xs text-slate-500">
+                Se podrán elegir/cambiar en el chat sin reiniciar. El primario es el de arriba.
+              </p>
+              {f.extra_models.length === 0 && (
+                <p className="text-xs text-slate-600">Ninguno. El agente usará solo el modelo primario.</p>
+              )}
+              {f.extra_models.map((em, i) => (
+                <div key={i} className="mb-2 flex items-center gap-2">
+                  <select
+                    value={em.provider}
+                    onChange={(e) => {
+                      const next = [...f.extra_models]
+                      next[i] = { ...next[i], provider: e.target.value }
+                      set('extra_models', next)
+                    }}
+                    className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-100"
+                  >
+                    {PROVIDERS.map((p) => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                  <input
+                    list={em.provider === 'opencode-go' ? 'opencode-go-models' : undefined}
+                    value={em.model}
+                    onChange={(e) => {
+                      const next = [...f.extra_models]
+                      next[i] = { ...next[i], model: e.target.value }
+                      set('extra_models', next)
+                    }}
+                    placeholder="id del modelo"
+                    className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-indigo-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => set('extra_models', f.extra_models.filter((_, j) => j !== i))}
+                    className="text-slate-500 hover:text-rose-400"
+                    title="Quitar"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+              <datalist id="opencode-go-models">
+                {OPENCODE_GO_MODELS.map((m) => (
+                  <option key={m} value={m} />
+                ))}
+              </datalist>
+            </div>
           </div>
         )}
 

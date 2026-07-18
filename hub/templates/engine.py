@@ -13,7 +13,8 @@ from tools.orchestrator import ToolOrchestrator
 MAX_TOOL_ROUNDS = 6
 
 
-async def process_message(message: str, session_id: str | None, user_id: str = "default") -> dict:
+async def process_message(message: str, session_id: str | None, user_id: str = "default",
+                          model_ref: str | None = None) -> dict:
     if not session_id:
         session_id = await session_store.create_session(user_id)
 
@@ -25,7 +26,8 @@ async def process_message(message: str, session_id: str | None, user_id: str = "
     tools_cfg = config.get("tools", {}) or {}
     tools = registry.tools_for_llm(tools_cfg.get("allow", ["*"]), tools_cfg.get("deny", []))
 
-    adapter = build_adapter()
+    # #11: si el chat manda un ref de modelo, se usa ese (sin reiniciar el agente).
+    adapter = build_adapter(model_ref)
     orchestrator = ToolOrchestrator(session_id)
     tools_used: list[str] = []
     messages = list(history)
