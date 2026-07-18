@@ -1,0 +1,38 @@
+# Config base de un agente (plantilla). El Hub rellena agent.name/port/install_path.
+agent:
+  name: ""
+  description: ""
+  status: "offline"
+
+personality:
+  tone: "directo"
+  formality: "tu"
+  humor: "poco"
+  empathy: "profesional"
+
+system_prompt: "Eres un asistente útil."
+
+llm:
+  provider: "ollama"
+  model: "qwen2.5:latest"
+  host: "http://localhost:11434"
+  temperature: 0.7
+  # api_key: para OpenAI / Anthropic / OpenCode (Sprint 2)
+
+tools:
+  allow:
+    - read_file
+    - write_file
+    - list_files
+    - search_web
+
+security:
+  level: 2
+  # sandbox_paths: lo rellena el Hub con data/ del agente si no se especifica
+
+channels:
+  web: true
+  whatsapp:
+    enabled: false
+
+auto_restart: false

@@ -52,36 +52,36 @@ r2-autonomous/hub/
 
 ### Checklist
 
-- [ ] `hub/main.py` — FastAPI con CORS, middleware
-- [ ] `hub/config.py` — Carga `config.yaml` del Hub
-- [ ] `hub/agent_manager.py`:
-  - [ ] `create(name, config) → AgentInfo`
-  - [ ] `delete(name)` — stop + archivar directorio
-  - [ ] `list() → list[AgentInfo]`
-  - [ ] `get(name) → AgentInfo`
-  - [ ] `get_config(name) → dict`
-  - [ ] `update_config(name, config)` — requiere restart
-- [ ] `hub/agent_process.py`:
-  - [ ] `AgentProcess.start()` — lanza uvicorn como subproceso
-  - [ ] `AgentProcess.stop()` — SIGTERM + timeout + SIGKILL
-  - [ ] `AgentProcess.restart()` — stop + start
-  - [ ] `AgentProcess.is_alive` — property
-  - [ ] `AgentProcess._wait_ready(timeout)` — espera health check
-- [ ] `hub/health_checker.py`:
-  - [ ] Loop async que verifica agentes cada N segundos
-  - [ ] Auto-restart en agentes con `auto_restart: true`
-- [ ] `hub/api/agents.py`:
-  - [ ] `GET  /api/v1/hub/agents` — lista agentes
-  - [ ] `POST /api/v1/hub/agents` — crea agente
-  - [ ] `DELETE /api/v1/hub/agents/{name}` — elimina
-  - [ ] `POST /api/v1/hub/agents/{name}/start`
-  - [ ] `POST /api/v1/hub/agents/{name}/stop`
-  - [ ] `POST /api/v1/hub/agents/{name}/restart`
-  - [ ] `GET  /api/v1/hub/agents/{name}/config`
-  - [ ] `PUT  /api/v1/hub/agents/{name}/config`
-- [ ] `hub/templates/agent_main.py` — esqueleto base (solo health check + chat stub)
-- [ ] `hub/templates/default_config.yaml` — config base con defaults
-- [ ] Probar: crear agente → iniciar → health check OK → detener
+- [x] `hub/main.py` — FastAPI con CORS, middleware
+- [x] `hub/config.py` — Carga `config.yaml` del Hub
+- [x] `hub/agent_manager.py`:
+  - [x] `create(name, config) → AgentInfo`
+  - [x] `delete(name)` — stop + archivar directorio
+  - [x] `list() → list[AgentInfo]`
+  - [x] `get(name) → AgentInfo`
+  - [x] `get_config(name) → dict`
+  - [x] `update_config(name, config)` — requiere restart
+- [x] `hub/agent_process.py`:
+  - [x] `AgentProcess.start()` — lanza uvicorn como subproceso
+  - [x] `AgentProcess.stop()` — SIGTERM + timeout + SIGKILL
+  - [x] `AgentProcess.restart()` — stop + start
+  - [x] `AgentProcess.is_alive` — property
+  - [x] `AgentProcess._wait_ready(timeout)` — espera health check
+- [x] `hub/health_checker.py`:
+  - [x] Loop async que verifica agentes cada N segundos
+  - [x] Auto-restart en agentes con `auto_restart: true`
+- [x] `hub/api/agents.py`:
+  - [x] `GET  /api/v1/hub/agents` — lista agentes
+  - [x] `POST /api/v1/hub/agents` — crea agente
+  - [x] `DELETE /api/v1/hub/agents/{name}` — elimina
+  - [x] `POST /api/v1/hub/agents/{name}/start`
+  - [x] `POST /api/v1/hub/agents/{name}/stop`
+  - [x] `POST /api/v1/hub/agents/{name}/restart`
+  - [x] `GET  /api/v1/hub/agents/{name}/config`
+  - [x] `PUT  /api/v1/hub/agents/{name}/config`
+- [x] `hub/templates/agent_main.py` — esqueleto base (solo health check + chat stub)
+- [x] `hub/templates/default_config.yaml` — config base con defaults
+- [x] Probar: crear agente → iniciar → health check OK → detener  ✅ smoke test E2E OK (17 Jul 2026)
 
 ---
 
