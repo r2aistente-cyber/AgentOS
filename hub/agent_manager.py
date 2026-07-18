@@ -82,9 +82,8 @@ class AgentManager:
                 encoding="utf-8",
             )
 
-            # 4. Copiar el engine template (stub en Sprint 1)
-            template_main = config.templates_dir() / "agent_main.py"
-            shutil.copy(template_main, agent_dir / "agent_main.py")
+            # 4. Copiar el engine template completo (agent_main + paquetes)
+            self._copy_engine_template(agent_dir)
 
             # 5. Script de arranque (conveniencia)
             self._create_run_script(agent_dir, port)
@@ -203,6 +202,26 @@ class AgentManager:
     def _set_status(self, name: str, status: str) -> None:
         self.agents[name].status = status
         self._save_registry()
+
+    def _copy_engine_template(self, agent_dir: Path) -> None:
+        """Copia el engine (agent_main.py, agent_config.py, engine.py y los
+        paquetes llm/tools/security/memory) al directorio del agente.
+
+        Excluye default_config.yaml (se fusiona aparte como config.yaml) y
+        cualquier __pycache__.
+        """
+        src = config.templates_dir()
+        exclude_files = {"default_config.yaml"}
+        for item in src.iterdir():
+            if item.name in exclude_files or item.name == "__pycache__":
+                continue
+            dest = agent_dir / item.name
+            if item.is_dir():
+                shutil.copytree(item, dest,
+                                ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+                                dirs_exist_ok=True)
+            else:
+                shutil.copy(item, dest)
 
     def _create_run_script(self, agent_dir: Path, port: int) -> None:
         """Scripts de conveniencia para lanzar el agente a mano (POSIX + Windows)."""

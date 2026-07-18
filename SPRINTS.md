@@ -146,23 +146,23 @@ hub/templates/
 
 ### Checklist
 
-- [ ] Copiar y adaptar archivos de v1 a `hub/templates/`
-- [ ] `agent_main.py` completo con:
-  - [ ] Carga de config.yaml (incluyendo api_key y provider)
-  - [ ] LLMAdapter multi-proveedor: Ollama (local), OpenAI, Anthropic (Claude), OpenCode, Google, Custom
-  - [ ] API keys vía `get_secret` (env/keychain, nunca texto plano)
-  - [ ] ToolRegistry + ToolOrchestrator
-  - [ ] Database + SessionManager
-  - [ ] Sandbox + PermissionEnforcer + Audit
-  - [ ] `POST /api/v1/chat` funcional
-  - [ ] `GET  /api/v1/health` funcional
-  - [ ] `GET  /api/v1/sessions` funcional
-- [ ] `POST /api/v1/upload` — subir archivos al data/ del agente
-- [ ] `GET  /api/v1/files` — listar archivos
-- [ ] Procesamiento de adjuntos: PDF, DOCX, TXT, CSV, XLSX, imágenes, audio
-- [ ] Probar: crear agente → iniciar → enviar mensaje → recibe respuesta
-- [ ] Probar: LLM llama tool → ejecuta → devuelve resultado
-- [ ] Probar: tools denegadas no se ejecutan
+- [x] Copiar y adaptar archivos de v1 a `hub/templates/` (imports locales, config por agente)
+- [x] `agent_main.py` completo con:
+  - [x] Carga de config.yaml (incluyendo api_key y provider)
+  - [x] LLMAdapter multi-proveedor: Ollama (local), OpenAI, Anthropic (Claude), OpenCode, Custom + Mock (dev/test). *(Google pendiente)*
+  - [x] API keys vía `get_secret` (env, nunca texto plano)
+  - [x] ToolRegistry + ToolOrchestrator
+  - [x] Database + SessionManager (SQLite por agente)
+  - [x] Sandbox + PermissionEnforcer (por agente) + Audit
+  - [x] `POST /api/v1/chat` funcional
+  - [x] `GET  /api/v1/health` funcional
+  - [x] `GET  /api/v1/sessions` funcional
+- [x] `POST /api/v1/upload` — subir archivos al data/ del agente
+- [x] `GET  /api/v1/files` — listar archivos
+- [ ] Procesamiento de adjuntos: PDF, DOCX, TXT, CSV, XLSX, imágenes, audio *(pendiente: hoy solo se guardan; falta extracción de contenido)*
+- [x] Probar: crear agente → iniciar → enviar mensaje → recibe respuesta ✅ smoke test E2E (mock)
+- [x] Probar: LLM llama tool → ejecuta → devuelve resultado ✅
+- [x] Probar: tools denegadas no se ejecutan ✅ (allow/deny por agente en PermissionEnforcer)
 
 ---
 

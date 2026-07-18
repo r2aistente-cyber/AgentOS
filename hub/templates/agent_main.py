@@ -1,29 +1,40 @@
-"""Engine base de un agente — STUB (Sprint 1).
+"""Engine base de un agente (Sprint 2) — LLM multi-proveedor + tools + memoria.
 
-Cada agente recibe UNA COPIA de este archivo en su propio directorio y se lanza
-con:  uvicorn agent_main:app --port <port> --host 127.0.0.1  (cwd = dir del agente)
-
-En Sprint 1 solo expone health check + un /chat de eco. El LLM, tools y memoria
-reales llegan en Sprint 2 (se copiarán llm/, tools/, security/, memory/ aquí).
+Cada agente recibe UNA COPIA de este archivo y sus paquetes (llm/, tools/,
+security/, memory/). Se lanza con:
+    uvicorn agent_main:app --host 127.0.0.1 --port <port>   (cwd = carpeta del agente)
 """
 from __future__ import annotations
 
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 
-import yaml
-from fastapi import FastAPI
+import uvicorn
+from fastapi import FastAPI, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-AGENT_DIR = Path(__file__).resolve().parent
-_CONFIG_PATH = AGENT_DIR / "config.yaml"
-CONFIG = yaml.safe_load(_CONFIG_PATH.read_text(encoding="utf-8")) if _CONFIG_PATH.exists() else {}
+import agent_config as config
+from memory.db import init_db
+from memory import session as session_store
+from tools import registry
+import tools.base_tools  # noqa: F401  (registra las base tools)
 
-AGENT_NAME = CONFIG.get("agent", {}).get("name", AGENT_DIR.name)
-MODEL = CONFIG.get("llm", {}).get("model", "unknown")
-
-app = FastAPI(title=f"Agent: {AGENT_NAME}", version="0.1-stub")
+AGENT_NAME = config.get("agent.name", config.AGENT_DIR.name)
+DATA_DIR = config.AGENT_DIR / "data"
 _START = time.time()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_db()
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    yield
+
+
+app = FastAPI(title=f"Agent: {AGENT_NAME}", version="0.2", lifespan=lifespan)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
 class ChatRequest(BaseModel):
@@ -33,27 +44,47 @@ class ChatRequest(BaseModel):
 
 
 @app.get("/api/v1/health")
-def health() -> dict:
-    data_dir = AGENT_DIR / "data"
-    files_count = len(list(data_dir.glob("*"))) if data_dir.exists() else 0
+async def health() -> dict:
+    files_count = len(list(DATA_DIR.glob("*"))) if DATA_DIR.exists() else 0
     return {
         "status": "ok",
         "agent": AGENT_NAME,
-        "model": MODEL,
+        "provider": config.get("llm.provider", "ollama"),
+        "model": config.get("llm.model", "unknown"),
         "uptime": round(time.time() - _START, 1),
+        "tools": [t.name for t in registry.all_tools()],
         "files_count": files_count,
-        "sessions_active": 0,
-        "stub": True,
     }
 
 
-@app.post("/api/v1/chat/simple")
 @app.post("/api/v1/chat")
-def chat(req: ChatRequest) -> dict:
-    # STUB: eco hasta que el engine real (Sprint 2) lo reemplace
-    return {
-        "session_id": req.session_id or "stub-session",
-        "reply": f"[{AGENT_NAME} · stub] recibí: {req.message}",
-        "tools_used": [],
-        "tokens_used": 0,
-    }
+@app.post("/api/v1/chat/simple")
+async def chat(req: ChatRequest) -> dict:
+    from engine import process_message
+    return await process_message(req.message, req.session_id, req.user_id)
+
+
+@app.get("/api/v1/sessions")
+async def sessions(user_id: str = "default") -> list[dict]:
+    return await session_store.list_sessions(user_id)
+
+
+@app.post("/api/v1/upload")
+async def upload(file: UploadFile = File(...)) -> dict:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    dest = DATA_DIR / Path(file.filename).name
+    dest.write_bytes(await file.read())
+    return {"filename": dest.name, "size": dest.stat().st_size}
+
+
+@app.get("/api/v1/files")
+async def files() -> list[dict]:
+    if not DATA_DIR.exists():
+        return []
+    return [{"name": f.name, "size": f.stat().st_size}
+            for f in sorted(DATA_DIR.iterdir()) if f.is_file()]
+
+
+if __name__ == "__main__":
+    port = int(config.get("agent.port", 9000))
+    uvicorn.run("agent_main:app", host="127.0.0.1", port=port, reload=False)
