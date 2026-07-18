@@ -14,8 +14,8 @@ from llm.adapter import LLMAdapter, LLMResponse, ToolCall
 # opencode (catálogo Go); el modelo lo distingue (ver providers/opencode-go).
 _PROVIDERS = {
     "openai":      ("https://api.openai.com/v1", "openai_key"),
-    "opencode":    ("https://opencode.ai/api/v1", "opencode_key"),
-    "opencode-go": ("https://opencode.ai/api/v1", "opencode_key"),
+    "opencode":    ("https://opencode.ai/zen/v1", "opencode_key"),
+    "opencode-go": ("https://opencode.ai/zen/go/v1", "opencode_key"),
 }
 
 
