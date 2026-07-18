@@ -48,6 +48,7 @@ class OllamaAdapter(LLMAdapter):
         self._model = config.get("llm.model", "qwen2.5:latest")
         self._temperature = config.get("llm.temperature", 0.7)
         self._max_tokens = config.get("llm.max_tokens", 4096)
+        self._num_ctx = config.get("llm.num_ctx", 8192)
         # Mantener el modelo cargado en memoria para no pagar el cold-start (~80s)
         # en cada primer mensaje. Configurable con llm.keep_alive.
         self._keep_alive = config.get("llm.keep_alive", "30m")
@@ -83,7 +84,11 @@ class OllamaAdapter(LLMAdapter):
             "messages": msgs,
             "stream": False,
             "keep_alive": self._keep_alive,
-            "options": {"temperature": self._temperature, "num_predict": self._max_tokens},
+            "options": {
+                "temperature": self._temperature,
+                "num_predict": self._max_tokens,
+                "num_ctx": self._num_ctx,
+            },
         }
         if tools:
             payload["tools"] = tools

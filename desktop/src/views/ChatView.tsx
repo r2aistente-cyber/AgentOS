@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   chatWithAgent,
+  createAgentSession,
   getAgent,
+  getSessionMessages,
+  listAgentSessions,
   startAgent,
   uploadToAgent,
   type AgentInfo,
+  type AgentSession,
 } from '../api'
 
 interface Props {
@@ -19,11 +23,18 @@ interface Msg {
   attachments?: string[]
 }
 
+interface Ctx {
+  tokens: number
+  limit: number
+}
+
 export default function ChatView({ agent: initialAgent, onBack }: Props) {
   const [agent, setAgent] = useState<AgentInfo>(initialAgent)
   const [messages, setMessages] = useState<Msg[]>([])
   const [input, setInput] = useState('')
   const [sessionId, setSessionId] = useState<string | null>(null)
+  const [sessions, setSessions] = useState<AgentSession[]>([])
+  const [context, setContext] = useState<Ctx | null>(null)
   const [sending, setSending] = useState(false)
   const [starting, setStarting] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -34,6 +45,103 @@ export default function ChatView({ agent: initialAgent, onBack }: Props) {
   const docInputRef = useRef<HTMLInputElement>(null)
 
   const online = agent.status === 'online'
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, sending])
+
+  // #1: refleja el estado real del agente (si lo detienes desde el Hub).
+  useEffect(() => {
+    const id = setInterval(async () => {
+      try {
+        setAgent(await getAgent(initialAgent.name))
+      } catch {
+        /* Hub caído o agente borrado: se ignora hasta el próximo tick */
+      }
+    }, 4000)
+    return () => clearInterval(id)
+  }, [initialAgent.name])
+
+  // #6/#12: al estar en línea, carga las sesiones y reabre la más reciente.
+  useEffect(() => {
+    if (!online) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const list = await listAgentSessions(agent.port)
+        if (cancelled) return
+        setSessions(list)
+        if (list.length > 0 && !sessionId) await loadSession(list[0].id)
+      } catch {
+        /* agente recién iniciado sin sesiones aún */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [online, agent.port])
+
+  const refreshSessions = async () => {
+    try {
+      setSessions(await listAgentSessions(agent.port))
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // #6: reconstruye una conversación desde la BD del agente.
+  const loadSession = async (sid: string) => {
+    setSessionId(sid)
+    setContext(null)
+    try {
+      const msgs = await getSessionMessages(agent.port, sid)
+      setMessages(
+        msgs
+          .filter((m) => m.role === 'user' || m.role === 'assistant')
+          .map((m) => ({
+            role: m.role as 'user' | 'assistant',
+            content: m.content,
+            tools: m.tools_used,
+          })),
+      )
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
+  // #12: nueva sesión de trabajo con el mismo agente.
+  const newSession = async () => {
+    try {
+      const s = await createAgentSession(agent.port)
+      setSessionId(s.id)
+      setMessages([])
+      setContext(null)
+      await refreshSessions()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
+  // Inicia el agente y espera (poll) hasta que esté en línea.
+  const handleStart = async () => {
+    setStarting(true)
+    setError(null)
+    try {
+      await startAgent(agent.name)
+      for (let i = 0; i < 10; i++) {
+        await new Promise((r) => setTimeout(r, 800))
+        const fresh = await getAgent(agent.name)
+        setAgent(fresh)
+        if (fresh.status === 'online') break
+        if (fresh.status === 'error') throw new Error('El agente falló al iniciar')
+      }
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setStarting(false)
+    }
+  }
 
   // Sube los archivos elegidos a la carpeta del agente y los deja como adjuntos.
   const handleFiles = async (list: FileList | null) => {
@@ -57,48 +165,10 @@ export default function ChatView({ agent: initialAgent, onBack }: Props) {
   const removeAttachment = (name: string) =>
     setAttachments((a) => a.filter((n) => n !== name))
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, sending])
-
-  // #1: refleja el estado real del agente. Si lo detienes desde el Hub, la
-  // ventana lo detecta (deshabilita input + muestra aviso) en pocos segundos.
-  useEffect(() => {
-    const id = setInterval(async () => {
-      try {
-        setAgent(await getAgent(initialAgent.name))
-      } catch {
-        /* Hub caído o agente borrado: se ignora hasta el próximo tick */
-      }
-    }, 4000)
-    return () => clearInterval(id)
-  }, [initialAgent.name])
-
-  // Inicia el agente y espera (poll) hasta que esté en línea.
-  const handleStart = async () => {
-    setStarting(true)
-    setError(null)
-    try {
-      await startAgent(agent.name)
-      for (let i = 0; i < 10; i++) {
-        await new Promise((r) => setTimeout(r, 800))
-        const fresh = await getAgent(agent.name)
-        setAgent(fresh)
-        if (fresh.status === 'online') break
-        if (fresh.status === 'error') throw new Error('El agente falló al iniciar')
-      }
-    } catch (e) {
-      setError((e as Error).message)
-    } finally {
-      setStarting(false)
-    }
-  }
-
   const send = async () => {
     const text = input.trim()
     if ((!text && attachments.length === 0) || sending || !online) return
     const atts = attachments
-    // El agente lee los adjuntos de su carpeta con read_document / read_image.
     const payload =
       atts.length > 0
         ? `${text}${text ? '\n\n' : ''}[Adjuntos: ${atts.join(', ')}]`
@@ -108,10 +178,15 @@ export default function ChatView({ agent: initialAgent, onBack }: Props) {
     setError(null)
     setMessages((m) => [...m, { role: 'user', content: text, attachments: atts }])
     setSending(true)
+    const wasNew = !sessionId
     try {
       const res = await chatWithAgent(agent.port, payload, sessionId)
       setSessionId(res.session_id)
+      if (res.context_tokens != null && res.context_limit != null) {
+        setContext({ tokens: res.context_tokens, limit: res.context_limit })
+      }
       setMessages((m) => [...m, { role: 'assistant', content: res.reply, tools: res.tools_used }])
+      if (wasNew) await refreshSessions()
     } catch (e) {
       setError((e as Error).message)
       setMessages((m) => [
@@ -122,6 +197,9 @@ export default function ChatView({ agent: initialAgent, onBack }: Props) {
       setSending(false)
     }
   }
+
+  const ctxPct = context ? Math.min(100, Math.round((context.tokens / context.limit) * 100)) : 0
+  const ctxColor = ctxPct < 60 ? 'bg-emerald-500' : ctxPct < 85 ? 'bg-amber-500' : 'bg-rose-500'
 
   return (
     <div className="flex h-full w-full flex-col">
@@ -136,6 +214,32 @@ export default function ChatView({ agent: initialAgent, onBack }: Props) {
           <h1 className="text-base font-semibold text-slate-100">{agent.name}</h1>
           <span className="font-mono text-xs text-slate-500">:{agent.port}</span>
           <span className={`h-2 w-2 rounded-full ${online ? 'bg-emerald-400' : 'bg-slate-500'}`} />
+        </div>
+
+        {/* #12: selector de sesión de trabajo */}
+        <div className="ml-auto flex items-center gap-2">
+          <select
+            value={sessionId ?? ''}
+            onChange={(e) => e.target.value && loadSession(e.target.value)}
+            disabled={!online || sessions.length === 0}
+            className="max-w-[10rem] rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200 outline-none disabled:opacity-40"
+            title="Sesión de trabajo"
+          >
+            {sessions.length === 0 && <option value="">Sin sesiones</option>}
+            {sessions.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.title}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={newSession}
+            disabled={!online}
+            title="Nueva sesión"
+            className="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-200 hover:bg-slate-700 disabled:opacity-40"
+          >
+            ＋ Nueva
+          </button>
         </div>
       </div>
 
@@ -196,6 +300,19 @@ export default function ChatView({ agent: initialAgent, onBack }: Props) {
         )}
         <div ref={bottomRef} />
       </div>
+
+      {/* #7: medidor de uso de contexto */}
+      {context && (
+        <div className="mt-2 flex items-center gap-2">
+          <span className="text-[11px] text-slate-500">Contexto</span>
+          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-800">
+            <div className={`h-full ${ctxColor} transition-all`} style={{ width: `${ctxPct}%` }} />
+          </div>
+          <span className="font-mono text-[11px] text-slate-400">
+            {context.tokens.toLocaleString()} / {context.limit.toLocaleString()} ({ctxPct}%)
+          </span>
+        </div>
+      )}
 
       {error && <p className="mt-2 text-xs text-rose-400">{error}</p>}
 

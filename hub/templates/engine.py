@@ -58,9 +58,14 @@ async def process_message(message: str, session_id: str | None, user_id: str = "
     final = response.content if response else ""
     await session_store.add_message(session_id, "assistant", final, tools_used,
                                     response.output_tokens if response else 0)
+    # #7: contexto = tokens del prompt enviado al modelo (lo que "se llena")
+    llm_cfg = config.get("llm", {}) or {}
+    context_limit = int(llm_cfg.get("num_ctx", 8192))
     return {
         "session_id": session_id,
         "reply": final,
         "tools_used": tools_used,
         "tokens_used": response.output_tokens if response else 0,
+        "context_tokens": response.input_tokens if response else 0,
+        "context_limit": context_limit,
     }

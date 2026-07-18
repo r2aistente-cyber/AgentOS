@@ -77,6 +77,28 @@ async def sessions(user_id: str = "default") -> list[dict]:
     return await session_store.list_sessions(user_id)
 
 
+class NewSessionRequest(BaseModel):
+    title: str = "Nueva sesión"
+    user_id: str = "default"
+
+
+@app.post("/api/v1/sessions", status_code=201)
+async def new_session(req: NewSessionRequest) -> dict:
+    sid = await session_store.create_session(req.user_id, req.title)
+    return {"id": sid, "title": req.title}
+
+
+@app.get("/api/v1/sessions/{session_id}/messages")
+async def session_messages(session_id: str) -> list[dict]:
+    return await session_store.get_messages(session_id)
+
+
+@app.delete("/api/v1/sessions/{session_id}")
+async def delete_session(session_id: str) -> dict:
+    await session_store.archive_session(session_id)
+    return {"archived": session_id}
+
+
 @app.post("/api/v1/upload")
 async def upload(file: UploadFile = File(...)) -> dict:
     DATA_DIR.mkdir(parents=True, exist_ok=True)

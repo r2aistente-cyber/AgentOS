@@ -41,3 +41,27 @@ async def get_history(session_id, limit: int = 30) -> list[dict]:
             (session_id, limit)) as cur:
             rows = await cur.fetchall()
     return [{"role": r["role"], "content": r["content"]} for r in reversed(rows)]
+
+
+async def get_messages(session_id, limit: int = 200) -> list[dict]:
+    """Historial completo de una sesión para reconstruir el chat en la UI (#6)."""
+    async with get_db() as db:
+        async with db.execute(
+            "SELECT role, content, tools_used, tokens FROM messages "
+            "WHERE session_id=? ORDER BY rowid ASC LIMIT ?", (session_id, limit)) as cur:
+            rows = await cur.fetchall()
+    out = []
+    for r in rows:
+        out.append({
+            "role": r["role"],
+            "content": r["content"],
+            "tools_used": json.loads(r["tools_used"]) if r["tools_used"] else [],
+            "tokens": r["tokens"] or 0,
+        })
+    return out
+
+
+async def archive_session(session_id) -> None:
+    async with get_db() as db:
+        await db.execute("UPDATE sessions SET archived=1 WHERE id=?", (session_id,))
+        await db.commit()

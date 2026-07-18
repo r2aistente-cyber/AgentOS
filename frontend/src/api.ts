@@ -63,6 +63,21 @@ export interface ChatResponse {
   session_id: string
   reply: string
   tools_used?: string[]
+  tokens_used?: number
+  context_tokens?: number
+  context_limit?: number
+}
+
+export interface AgentSession {
+  id: string
+  title: string
+  created_at?: string
+}
+
+export interface SessionMessage {
+  role: 'user' | 'assistant' | 'system' | 'tool'
+  content: string
+  tools_used?: string[]
   tokens?: number
 }
 
@@ -163,6 +178,36 @@ export async function chatWithAgent(
 export interface UploadResult {
   filename: string
   size: number
+}
+
+// ---- Sesiones del agente (directo al puerto) ----
+
+const agentBase = (port: number) => `http://localhost:${port}/api/v1`
+
+export async function listAgentSessions(port: number): Promise<AgentSession[]> {
+  const res = await fetch(`${agentBase(port)}/sessions`)
+  if (!res.ok) throw new Error(`Sessions error: ${res.status}`)
+  return res.json()
+}
+
+export async function createAgentSession(port: number, title = 'Nueva sesión'): Promise<AgentSession> {
+  const res = await fetch(`${agentBase(port)}/sessions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title }),
+  })
+  if (!res.ok) throw new Error(`Create session error: ${res.status}`)
+  return res.json()
+}
+
+export async function getSessionMessages(port: number, sessionId: string): Promise<SessionMessage[]> {
+  const res = await fetch(`${agentBase(port)}/sessions/${sessionId}/messages`)
+  if (!res.ok) throw new Error(`History error: ${res.status}`)
+  return res.json()
+}
+
+export async function deleteAgentSession(port: number, sessionId: string): Promise<void> {
+  await fetch(`${agentBase(port)}/sessions/${sessionId}`, { method: 'DELETE' })
 }
 
 // Sube un archivo (imagen o documento) a la carpeta del agente. El agente luego
