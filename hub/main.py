@@ -34,11 +34,30 @@ health_checker = HealthChecker(manager)
 async def lifespan(app: FastAPI):
     log.info("Hub arrancando — %d agente(s) en el registro", len(manager.list()))
     # Reconciliar: al reiniciar el Hub, los subprocesos anteriores ya no existen
+    auto_start_names = []
     for info in manager.list():
         if info.status in ("online", "starting"):
             info.status = "offline"
             info.pid = None
+        if info.auto_restart:
+            auto_start_names.append(info.name)
     manager._save_registry()
+
+    # Auto-start: arrancar agentes con auto_restart=true en background
+    if auto_start_names:
+        import asyncio as _asyncio
+
+        async def _start_auto():
+            await _asyncio.sleep(1)  # Espera mínima para que FastAPI termine de arrancar
+            for name in auto_start_names:
+                try:
+                    await _asyncio.to_thread(manager.start, name)
+                    log.info("Auto-start: '%s' arrancado", name)
+                except Exception as e:
+                    log.warning("Auto-start falló para '%s': %s", name, e)
+
+        _asyncio.create_task(_start_auto())
+
     health_checker.start()
     yield
     log.info("Hub apagando — deteniendo agentes activos")
