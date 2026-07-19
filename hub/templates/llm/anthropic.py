@@ -15,7 +15,11 @@ _VERSION = "2023-06-01"
 
 class AnthropicAdapter(LLMAdapter):
     def __init__(self, model: str | None = None, api_key: str | None = None) -> None:
-        self._base = (config.get("llm.host") or "https://api.anthropic.com").rstrip("/")
+        # Solo usar llm.host si el proveedor primario ES anthropic (evita heredar
+        # el host de Ollama u otro proveedor cuando se usa como extra model).
+        primary = config.get("llm.provider", "")
+        custom_host = config.get("llm.host") if primary == "anthropic" else None
+        self._base = (custom_host or "https://api.anthropic.com").rstrip("/")
         self._model = model or config.get("llm.model", "claude-opus-4-8")
         self._temperature = config.get("llm.temperature", 0.7)
         self._max_tokens = config.get("llm.max_tokens", 4096)
