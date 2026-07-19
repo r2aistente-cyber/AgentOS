@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   chatWithAgent,
   createAgentSession,
+  deleteAgentSession,
   getAgent,
   getAgentModels,
   getSessionMessages,
@@ -270,6 +271,49 @@ export default function ChatView({ agent: initialAgent, onBack }: Props) {
           >
             ＋ Nueva
           </button>
+          {sessionId && (
+            <>
+              <button
+                onClick={async () => {
+                  if (!confirm('¿Borrar esta sesión? No se puede deshacer.')) return
+                  try {
+                    await deleteAgentSession(agent.name, agent.port, sessionId)
+                    setSessionId(null)
+                    setMessages([])
+                    setContext(null)
+                    await refreshSessions()
+                  } catch (e) {
+                    setError((e as Error).message)
+                  }
+                }}
+                disabled={!online}
+                title="Eliminar sesión"
+                className="rounded-lg border border-rose-700/50 bg-rose-900/30 px-2 py-1 text-xs text-rose-300 hover:bg-rose-800/50 disabled:opacity-40"
+              >
+                🗑️
+              </button>
+              <button
+                onClick={() => {
+                  const sep = '\n\n---\n\n'
+                  const txt = messages
+                    .map((m) => { const role = m.role === 'user' ? '🧑 Tú' : '🤖 Agente'; return '# ' + role + '\n' + m.content })
+                    .join(sep)
+                  const blob = new Blob([txt], { type: 'text/markdown' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = `${agent.name}-${sessionId.slice(0, 8)}.md`
+                  a.click()
+                  URL.revokeObjectURL(url)
+                }}
+                disabled={messages.length === 0}
+                title="Exportar sesión como Markdown"
+                className="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-200 hover:bg-slate-700 disabled:opacity-40"
+              >
+                ⬇️
+              </button>
+            </>
+          )}
         </div>
       </div>
 
