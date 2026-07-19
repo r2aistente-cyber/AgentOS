@@ -7,6 +7,13 @@ import {
 } from '../api'
 import AgentCard from '../components/AgentCard'
 
+interface HubStats {
+  total: number
+  online: number
+  offline: number
+  error: number
+}
+
 interface Props {
   onCreate: () => void
   onChat: (a: AgentInfo) => void
@@ -16,13 +23,19 @@ interface Props {
 
 export default function Dashboard({ onCreate, onChat, onConfig, onLogs }: Props) {
   const [agents, setAgents] = useState<AgentInfo[] | null>(null)
+  const [stats, setStats] = useState<HubStats | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
       setError(null)
-      setAgents(await listAgents())
+      const [agentList, statsRes] = await Promise.all([
+        listAgents(),
+        fetch('/api/v1/hub/stats').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      ])
+      setAgents(agentList)
+      if (statsRes) setStats(statsRes as HubStats)
     } catch (e) {
       setError((e as Error).message)
       setAgents([])
@@ -31,7 +44,6 @@ export default function Dashboard({ onCreate, onChat, onConfig, onLogs }: Props)
 
   useEffect(() => {
     load()
-    // Refresco de estado en vivo cada 5s (barato: solo GET /agents)
     const id = setInterval(load, 5000)
     return () => clearInterval(id)
   }, [load])
@@ -52,7 +64,7 @@ export default function Dashboard({ onCreate, onChat, onConfig, onLogs }: Props)
 
   return (
     <div className="mx-auto max-w-5xl">
-      <header className="mb-6 flex items-center justify-between">
+      <header className="mb-4 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-slate-100">Dashboard</h1>
           <p className="text-sm text-slate-500">
@@ -68,6 +80,26 @@ export default function Dashboard({ onCreate, onChat, onConfig, onLogs }: Props)
           + Crear Agente
         </button>
       </header>
+
+      {/* Barra de stats globales */}
+      {stats && (
+        <div className="mb-5 grid grid-cols-4 gap-3">
+          {[
+            { label: 'Total', value: stats.total, color: 'text-slate-300' },
+            { label: 'Online', value: stats.online, color: 'text-emerald-400' },
+            { label: 'Offline', value: stats.offline, color: 'text-slate-500' },
+            { label: 'Error', value: stats.error, color: 'text-rose-400' },
+          ].map(({ label, value, color }) => (
+            <div
+              key={label}
+              className="rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-center"
+            >
+              <p className={`text-2xl font-bold ${color}`}>{value}</p>
+              <p className="text-[11px] text-slate-500">{label}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 rounded-lg border border-rose-800 bg-rose-950/50 px-4 py-3 text-sm text-rose-300">

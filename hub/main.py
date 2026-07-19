@@ -14,7 +14,17 @@ from hub.api.admin import router as admin_router
 from hub.api.fs import router as fs_router
 from hub.health_checker import HealthChecker
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
+_fmt = "%(asctime)s [%(name)s] %(levelname)s %(message)s"
+logging.basicConfig(level=logging.INFO, format=_fmt)
+
+# Log a archivo centralizado ~/AgentOS/logs/hub.log
+from hub import config as _cfg  # noqa: E402 (import dentro del módulo para evitar circular)
+_hub_log_dir = _cfg.home_dir() / "logs"
+_hub_log_dir.mkdir(parents=True, exist_ok=True)
+_fh = logging.FileHandler(_hub_log_dir / "hub.log", encoding="utf-8")
+_fh.setFormatter(logging.Formatter(_fmt))
+logging.getLogger().addHandler(_fh)
+
 log = logging.getLogger("hub")
 
 health_checker = HealthChecker(manager)

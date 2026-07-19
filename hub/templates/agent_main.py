@@ -54,7 +54,22 @@ class ChatRequest(BaseModel):
 
 @app.get("/api/v1/health")
 async def health() -> dict:
-    files_count = len(list(DATA_DIR.glob("*"))) if DATA_DIR.exists() else 0
+    files_count = len([f for f in DATA_DIR.glob("*") if f.is_file() and not f.name.endswith(".extracted.txt")]) if DATA_DIR.exists() else 0
+
+    sessions_count = 0
+    tokens_total = 0
+    try:
+        from memory.db import get_db
+        async with get_db() as db:
+            async with db.execute("SELECT COUNT(*) FROM sessions WHERE archived=0") as cur:
+                row = await cur.fetchone()
+                sessions_count = row[0] if row else 0
+            async with db.execute("SELECT COALESCE(SUM(tokens),0) FROM messages") as cur:
+                row = await cur.fetchone()
+                tokens_total = row[0] if row else 0
+    except Exception:
+        pass
+
     return {
         "status": "ok",
         "agent": AGENT_NAME,
@@ -63,6 +78,8 @@ async def health() -> dict:
         "uptime": round(time.time() - _START, 1),
         "tools": [t.name for t in registry.all_tools()],
         "files_count": files_count,
+        "sessions": sessions_count,
+        "tokens_total": tokens_total,
     }
 
 

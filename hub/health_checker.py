@@ -15,7 +15,7 @@ log = logging.getLogger("hub.health")
 class HealthChecker:
     def __init__(self, manager: AgentManager):
         self.manager = manager
-        self.interval = int(config.get("hub.health_check.interval_seconds", 15))
+        self.interval = int(config.get("hub.health_check.interval_seconds", 10))
         self.timeout = float(config.get("hub.health_check.timeout_seconds", 5))
         self._task: asyncio.Task | None = None
         self._stop = asyncio.Event()
@@ -42,25 +42,38 @@ class HealthChecker:
     async def _check_all(self, client: httpx.AsyncClient) -> None:
         for info in self.manager.list():
             proc = self.manager.processes.get(info.name)
-            # Solo vigilamos agentes que el Hub cree que están online
-            if info.status != "online" or proc is None:
+            if info.status not in ("online", "starting") or proc is None:
                 continue
 
+            # Detección inmediata: si el proceso OS ya murió, actuar sin esperar timeout HTTP
+            if not proc.is_alive:
+                log.warning("Proceso del agente '%s' murió (PID=%s)", info.name, proc.pid)
+                await self._handle_down(info.name, proc)
+                continue
+
+            # Proceso vivo → verificar health endpoint
             alive = False
-            if proc.is_alive:
-                try:
-                    r = await client.get(proc.health_url)
-                    alive = r.status_code == 200
-                except Exception:  # noqa: BLE001
-                    alive = False
+            try:
+                r = await client.get(proc.health_url)
+                alive = r.status_code == 200
+            except Exception:
+                alive = False
 
             if not alive:
-                log.warning("Agente '%s' no responde health check", info.name)
-                if info.auto_restart:
-                    log.info("Auto-reiniciando '%s'", info.name)
-                    try:
-                        await asyncio.to_thread(self.manager.restart, info.name)
-                    except Exception as e:  # noqa: BLE001
-                        log.error("Fallo al reiniciar '%s': %s", info.name, e)
-                else:
-                    self.manager._set_status(info.name, "error")
+                log.warning("Agente '%s' no responde en %s", info.name, proc.health_url)
+                await self._handle_down(info.name, proc)
+
+    async def _handle_down(self, name: str, proc) -> None:
+        info = self.manager.agents.get(name)
+        if info is None:
+            return
+        if info.auto_restart:
+            log.info("Auto-reiniciando '%s'", name)
+            try:
+                await asyncio.to_thread(self.manager.restart, name)
+                log.info("'%s' reiniciado correctamente", name)
+            except Exception as e:
+                log.error("Fallo al reiniciar '%s': %s", name, e)
+                self.manager._set_status(name, "error")
+        else:
+            self.manager._set_status(name, "error")
