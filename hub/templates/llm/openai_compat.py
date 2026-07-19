@@ -22,18 +22,17 @@ _PROVIDERS = {
 }
 
 # Detecta el bloque DSML completo de tool_calls de DeepSeek
+_SEP = '｜｜'  # ｜｜ fullwidth vertical line U+FF5C (no pipe normal)
 _DSML_BLOCK = re.compile(
-    r'<\|\|DSML\|\|tool_calls>(.*?)</\|\|DSML\|\|tool_calls>',
+    rf'<{_SEP}DSML{_SEP}tool_calls>(.*?)</{_SEP}DSML{_SEP}tool_calls>',
     re.DOTALL,
 )
-# Extrae cada invoke dentro del bloque
 _DSML_INVOKE = re.compile(
-    r'<\|\|DSML\|\|invoke\s+name="([^"]+)">(.*?)</\|\|DSML\|\|invoke>',
+    rf'<{_SEP}DSML{_SEP}invoke\s+name="([^"]+)">(.*?)</{_SEP}DSML{_SEP}invoke>',
     re.DOTALL,
 )
-# Extrae cada parameter dentro de un invoke
 _DSML_PARAM = re.compile(
-    r'<\|\|DSML\|\|parameter\s+name="([^"]+)"\s+string="([^"]+)">(.*?)</\|\|DSML\|\|parameter>',
+    rf'<{_SEP}DSML{_SEP}parameter\s+name="([^"]+)"\s+string="([^"]+)">(.*?)</{_SEP}DSML{_SEP}parameter>',
     re.DOTALL,
 )
 
