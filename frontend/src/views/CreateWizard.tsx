@@ -11,6 +11,51 @@ const STEPS = ['Identidad', 'Personalidad', 'LLM', 'Tools y canales', 'Resumen']
 
 const PROVIDERS = ['ollama', 'openai', 'anthropic', 'opencode', 'opencode-go', 'custom', 'mock']
 
+// num_ctx sugerido por proveedor/modelo. El usuario puede sobreescribir.
+const NUM_CTX_DEFAULTS: Record<string, number> = {
+  // opencode-go
+  'opencode-go/deepseek-v4-pro':  100000,
+  'opencode-go/deepseek-v4-flash': 64000,
+  'opencode-go/kimi-k3':          128000,
+  'opencode-go/kimi-k2.7-code':   128000,
+  'opencode-go/kimi-k2.6':        128000,
+  'opencode-go/kimi-k2.5':        128000,
+  'opencode-go/qwen3.7-max':       32000,
+  'opencode-go/qwen3.7-plus':      32000,
+  'opencode-go/qwen3.6-plus':      32000,
+  'opencode-go/qwen3.5-plus':      32000,
+  // opencode
+  'opencode/deepseek-v4-pro':     100000,
+  'opencode/deepseek-v4-flash':    64000,
+  'opencode/claude-fable-5':      200000,
+  'opencode/claude-opus-4-8':     200000,
+  'opencode/claude-sonnet-5':     200000,
+  'opencode/claude-sonnet-4-6':   200000,
+  'opencode/claude-haiku-4-5':    200000,
+  'opencode/gpt-5.5':             128000,
+  'opencode/gpt-5.4':             128000,
+  'opencode/gpt-5.4-mini':        128000,
+  'opencode/gpt-5':               128000,
+  // anthropic
+  'anthropic/claude-opus-4-8':    200000,
+  'anthropic/claude-sonnet-4-6':  200000,
+  'anthropic/claude-haiku-4-5':   200000,
+  // openai
+  'openai/gpt-4o':                128000,
+  'openai/gpt-4o-mini':           128000,
+  'openai/gpt-4.1':               128000,
+  'openai/o3':                    200000,
+  'openai/o4-mini':               200000,
+}
+
+function suggestNumCtx(provider: string, model: string): number {
+  return (
+    NUM_CTX_DEFAULTS[`${provider}/${model}`] ??
+    ({'anthropic': 200000, 'openai': 128000, 'opencode': 128000, 'opencode-go': 64000}[provider]) ??
+    8192
+  )
+}
+
 // Catálogo estático obtenido de los endpoints reales de cada proveedor.
 // Se funde con el catálogo del Hub; el dinámico (Ollama) prevalece.
 const STATIC_CATALOG: Record<string, string[]> = {
@@ -185,6 +230,23 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
   const availableModels: string[] | null = modelCatalog[f.provider] ?? null
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((p) => ({ ...p, [k]: v }))
+
+  // Cambia provider: resetea modelo y auto-sugiere num_ctx
+  const setProvider = (provider: string) =>
+    setF((p) => ({
+      ...p,
+      provider,
+      model: '',
+      num_ctx: suggestNumCtx(provider, ''),
+    }))
+
+  // Cambia modelo: auto-sugiere num_ctx manteniendo el provider
+  const setModel = (model: string) =>
+    setF((p) => ({
+      ...p,
+      model,
+      num_ctx: suggestNumCtx(p.provider, model),
+    }))
 
   const nameValid = /^[a-zA-Z0-9_-]{2,40}$/.test(f.name)
   const needsKey = ['openai', 'anthropic', 'opencode', 'opencode-go'].includes(f.provider)
@@ -382,7 +444,7 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <Field label="Proveedor">
-                <select className={inputCls} value={f.provider} onChange={(e) => set('provider', e.target.value)}>
+                <select className={inputCls} value={f.provider} onChange={(e) => setProvider(e.target.value)}>
                   {PROVIDERS.map((p) => (
                     <option key={p} value={p}>{p}</option>
                   ))}
@@ -393,8 +455,9 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
                   <select
                     className={inputCls}
                     value={f.model}
-                    onChange={(e) => set('model', e.target.value)}
+                    onChange={(e) => setModel(e.target.value)}
                   >
+                    <option value="">— elige modelo —</option>
                     {availableModels.map((m) => (
                       <option key={m} value={m}>{m}</option>
                     ))}
@@ -403,7 +466,7 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
                   <input
                     className={inputCls}
                     value={f.model}
-                    onChange={(e) => set('model', e.target.value)}
+                    onChange={(e) => setModel(e.target.value)}
                     placeholder="qwen2.5:latest / claude-opus-4-8 / gpt-4o"
                   />
                 )}
@@ -437,7 +500,7 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
               />
             </Field>
 
-            <Field label="Contexto (num_ctx / tokens)" hint="8192 Ollama · 32000 Qwen · 100000 DeepSeek v4 Pro · 200000 Claude">
+            <Field label="Contexto (num_ctx / tokens)" hint={`Auto-sugerido: ${suggestNumCtx(f.provider, f.model).toLocaleString()} · editable`}>
               <input
                 type="number"
                 min={1024}
