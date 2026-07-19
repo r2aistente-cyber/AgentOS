@@ -22,8 +22,10 @@ _PROVIDERS = {
 class OpenAICompatAdapter(LLMAdapter):
     def __init__(self, provider: str = "openai", model: str | None = None) -> None:
         base, secret_name = _PROVIDERS.get(provider, (None, "openai_key"))
-        self._base = config.get("llm.host") or base or "https://api.openai.com/v1"
-        self._base = self._base.rstrip("/")
+        # llm.host solo se respeta para proveedores "custom" (sin URL hardcodeada).
+        # Para openai/opencode/opencode-go se usa siempre la URL canónica.
+        custom_host = config.get("llm.host") if provider not in _PROVIDERS else None
+        self._base = (custom_host or base or "https://api.openai.com/v1").rstrip("/")
         # #9: el modelo puede venir como "provider/model" — extraer solo el nombre
         raw_model = model or config.get("llm.model", "gpt-4o-mini")
         if raw_model and "/" in raw_model:

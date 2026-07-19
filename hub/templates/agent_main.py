@@ -55,7 +55,8 @@ class _AuthMiddleware(BaseHTTPMiddleware):
     """Valida Bearer token si la ruta no es pública."""
 
     async def dispatch(self, request: Request, call_next):
-        if not _AGENT_TOKEN or request.url.path in _PUBLIC_PATHS:
+        # OPTIONS = CORS preflight, siempre pasa (el CORSMiddleware lo maneja)
+        if not _AGENT_TOKEN or request.url.path in _PUBLIC_PATHS or request.method == "OPTIONS":
             return await call_next(request)
 
         auth = request.headers.get("Authorization", "")
