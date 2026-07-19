@@ -70,7 +70,7 @@ class AgentManager:
                 raise FileExistsError(f"Ya existe el directorio '{agent_dir}'")
 
             # 1. Estructura de directorios
-            for sub in ("", "data", "logs", "tools"):
+            for sub in ("", "data", "data/knowledge", "logs", "tools"):
                 (agent_dir / sub).mkdir(parents=True, exist_ok=True)
 
             # 2. Puerto único
@@ -285,6 +285,8 @@ class AgentManager:
         # Generar token único por agente si no viene en el body
         if not merged["security"].get("token"):
             merged["security"]["token"] = secrets.token_hex(32)
+        # RAG: knowledge apunta a data/knowledge/ del agente por defecto
+        merged.setdefault("knowledge", [str(agent_dir / "data" / "knowledge")])
         return merged
 
 
