@@ -34,6 +34,7 @@ interface Form {
   model: string
   host: string
   temperature: number
+  num_ctx: number
   api_key: string
   extra_models: { provider: string; model: string }[]
   tools: string[]
@@ -58,6 +59,7 @@ const DEFAULT: Form = {
   model: 'qwen2.5:latest',
   host: 'http://localhost:11434',
   temperature: 0.7,
+  num_ctx: 8192,
   api_key: '',
   extra_models: [],
   tools: ['read_file', 'write_file', 'list_files', 'search_web'],
@@ -133,6 +135,7 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
         model: f.model,
         host: f.host,
         temperature: f.temperature,
+        num_ctx: f.num_ctx,
         ...(needsKey && f.api_key ? { api_key: f.api_key } : {}),
         // #10: modelos disponibles para elegir en el chat (#11).
         models: [
@@ -351,6 +354,18 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
                 value={f.temperature}
                 onChange={(e) => set('temperature', Number(e.target.value))}
                 className="w-full accent-indigo-500"
+              />
+            </Field>
+
+            <Field label="Contexto (num_ctx / tokens)" hint="8192 Ollama · 32000 Qwen · 100000 DeepSeek v4 Pro · 200000 Claude">
+              <input
+                type="number"
+                min={1024}
+                max={200000}
+                step={1024}
+                value={f.num_ctx}
+                onChange={(e) => set('num_ctx', Math.max(1024, Number(e.target.value)))}
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-indigo-500"
               />
             </Field>
 
