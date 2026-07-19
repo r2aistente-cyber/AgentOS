@@ -1,0 +1,15 @@
+{
+  "name": "r2-agentos-wa-sidecar",
+  "version": "1.0.0",
+  "description": "Sidecar WhatsApp para AgentOS — recibe mensajes y reenvía al agente",
+  "main": "sidecar.js",
+  "scripts": {
+    "start": "node sidecar.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "qrcode": "^1.5.4",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.34.7"
+  }
+}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   deleteAgent,
   getAgentConfig,
@@ -11,6 +11,136 @@ import {
   type AgentInfo,
 } from '../api'
 import StatusBadge from '../components/StatusBadge'
+
+const HUB = '/api/v1/hub'
+
+interface WaStatus {
+  running: boolean
+  ready: boolean
+  waiting_qr: boolean
+  error: string | null
+  messages_in?: number
+  messages_out?: number
+  sidecar_port?: number
+}
+
+function WhatsAppPanel({ agent }: { agent: AgentInfo }) {
+  const [status, setStatus] = useState<WaStatus | null>(null)
+  const [qrImage, setQrImage] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const fetchStatus = async () => {
+    try {
+      const r = await fetch(`${HUB}/agents/${encodeURIComponent(agent.name)}/whatsapp/status`)
+      if (r.ok) setStatus(await r.json())
+    } catch {}
+  }
+
+  const fetchQr = async () => {
+    try {
+      const r = await fetch(`${HUB}/agents/${encodeURIComponent(agent.name)}/whatsapp/qr`)
+      if (r.ok) {
+        const d = await r.json()
+        setQrImage(d.qr_image || null)
+      } else {
+        setQrImage(null)
+      }
+    } catch {}
+  }
+
+  useEffect(() => {
+    fetchStatus()
+    pollRef.current = setInterval(async () => {
+      await fetchStatus()
+    }, 3000)
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
+  }, [agent.name])
+
+  useEffect(() => {
+    if (status?.waiting_qr) {
+      fetchQr()
+      const id = setInterval(fetchQr, 5000)
+      return () => clearInterval(id)
+    } else {
+      setQrImage(null)
+    }
+  }, [status?.waiting_qr])
+
+  const start = async () => {
+    setBusy(true)
+    try {
+      await fetch(`${HUB}/agents/${encodeURIComponent(agent.name)}/whatsapp/start`, { method: 'POST' })
+      await fetchStatus()
+    } catch {} finally { setBusy(false) }
+  }
+
+  const stop = async () => {
+    setBusy(true)
+    try {
+      await fetch(`${HUB}/agents/${encodeURIComponent(agent.name)}/whatsapp/stop`, { method: 'POST' })
+      setQrImage(null)
+      await fetchStatus()
+    } catch {} finally { setBusy(false) }
+  }
+
+  const dotColor = !status?.running ? 'bg-slate-500'
+    : status.ready ? 'bg-emerald-400'
+    : status.waiting_qr ? 'bg-amber-400 animate-pulse'
+    : 'bg-rose-500'
+
+  const statusText = !status?.running ? 'Detenido'
+    : status.ready ? 'Conectado ✓'
+    : status.waiting_qr ? 'Esperando QR'
+    : status.error ? `Error: ${status.error}` : 'Iniciando…'
+
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-base">📱</span>
+          <h3 className="text-sm font-semibold text-slate-200">WhatsApp</h3>
+          <span className={`h-2 w-2 rounded-full ${dotColor}`} />
+          <span className="text-xs text-slate-400">{statusText}</span>
+        </div>
+        <div className="flex gap-2">
+          {status?.running ? (
+            <button onClick={stop} disabled={busy}
+              className="rounded-md bg-rose-600/80 px-3 py-1 text-xs font-medium text-white hover:bg-rose-500 disabled:opacity-40">
+              ⏹ Detener
+            </button>
+          ) : (
+            <button onClick={start} disabled={busy}
+              className="rounded-md bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-40">
+              ▶ Iniciar sidecar
+            </button>
+          )}
+        </div>
+      </div>
+
+      {status?.waiting_qr && (
+        <div className="mt-3 text-center">
+          <p className="mb-2 text-xs text-amber-400">
+            Abre WhatsApp → Dispositivos vinculados → Vincular un dispositivo → Escanea:
+          </p>
+          {qrImage ? (
+            <img src={qrImage} alt="QR WhatsApp" className="mx-auto rounded-lg border border-slate-700" style={{ width: 200, height: 200 }} />
+          ) : (
+            <div className="mx-auto h-48 w-48 animate-pulse rounded-lg bg-slate-800" />
+          )}
+        </div>
+      )}
+
+      {status?.ready && (
+        <div className="mt-3 flex gap-4 text-xs text-slate-500">
+          <span>📥 {status.messages_in ?? 0} recibidos</span>
+          <span>📤 {status.messages_out ?? 0} enviados</span>
+          {status.sidecar_port && <span>puerto :{status.sidecar_port}</span>}
+        </div>
+      )}
+    </div>
+  )
+}
 
 interface Props {
   agent: AgentInfo
@@ -130,6 +260,10 @@ export default function AgentDetail({ agent, onBack, onDeleted, onChanged }: Pro
       {msg && (
         <div className="mb-4 rounded-lg border border-emerald-800 bg-emerald-950/40 px-4 py-3 text-sm text-emerald-300">{msg}</div>
       )}
+
+      <div className="mb-4">
+        <WhatsAppPanel agent={agent} />
+      </div>
 
       {config === null ? (
         <div className="h-64 animate-pulse rounded-xl border border-slate-800 bg-slate-900/40" />

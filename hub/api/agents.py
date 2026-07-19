@@ -10,11 +10,13 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from hub.agent_manager import AgentManager
+from hub.whatsapp_manager import WhatsAppManager
 
 router = APIRouter(prefix="/api/v1/hub", tags=["agents"])
 
-# Instancia única del gestor (compartida por el proceso del Hub)
+# Instancias únicas compartidas por el proceso del Hub
 manager = AgentManager()
+wa_manager = WhatsAppManager()
 
 
 class CreateAgentRequest(BaseModel):
@@ -184,6 +186,53 @@ async def stream_agent_logs(name: str, tail: int = 50):
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.post("/agents/{name}/whatsapp/start")
+def start_whatsapp(name: str, allowed_numbers: list[str] | None = None) -> dict:
+    """Inicia el sidecar de WhatsApp para este agente."""
+    try:
+        info = manager.get(name)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    session_dir = Path(info.dir) / "whatsapp" / "session"
+    wa_cfg = manager.get_config(name).get("channels", {}).get("whatsapp", {})
+    numbers = allowed_numbers or []
+    if not numbers and wa_cfg.get("allowed_numbers"):
+        numbers = wa_cfg["allowed_numbers"]
+    try:
+        sc = wa_manager.start(name, info.port, session_dir, numbers)
+        return {"started": True, "sidecar_port": sc.sidecar_port}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/agents/{name}/whatsapp/stop")
+def stop_whatsapp(name: str) -> dict:
+    """Detiene el sidecar de WhatsApp del agente."""
+    wa_manager.stop(name)
+    return {"stopped": True}
+
+
+@router.get("/agents/{name}/whatsapp/status")
+def whatsapp_status(name: str) -> dict:
+    try:
+        manager.get(name)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return wa_manager.status(name)
+
+
+@router.get("/agents/{name}/whatsapp/qr")
+def whatsapp_qr(name: str) -> dict:
+    try:
+        manager.get(name)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    qr_data = wa_manager.get_qr(name)
+    if qr_data is None:
+        raise HTTPException(status_code=404, detail="Sin QR disponible")
+    return qr_data
 
 
 @router.get("/stats")
