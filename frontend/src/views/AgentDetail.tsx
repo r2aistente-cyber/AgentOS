@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   deleteAgent,
   getAgentConfig,
+  listProviderModels,
   restartAgent,
   startAgent,
   stopAgent,
@@ -26,12 +27,19 @@ export default function AgentDetail({ agent, onBack, onDeleted, onChanged }: Pro
   const [error, setError] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [modelCatalog, setModelCatalog] = useState<Record<string, string[] | null>>({})
 
   useEffect(() => {
     getAgentConfig(agent.name)
       .then(setConfig)
       .catch((e) => setError((e as Error).message))
+    listProviderModels().then(setModelCatalog).catch(() => {})
   }, [agent.name])
+
+  // Modelos disponibles para el proveedor actual
+  const availableModels: string[] | null = config
+    ? (modelCatalog[config.llm?.provider ?? ''] ?? null)
+    : null
 
   const patch = (fn: (c: AgentConfig) => AgentConfig) =>
     setConfig((c) => (c ? fn(c) : c))
@@ -135,15 +143,27 @@ export default function AgentDetail({ agent, onBack, onDeleted, onChanged }: Pro
                 value={config.llm?.provider ?? 'ollama'}
                 onChange={(e) => patch((c) => ({ ...c, llm: { ...c.llm, provider: e.target.value } }))}
               >
-                {['ollama', 'openai', 'anthropic', 'opencode', 'custom', 'mock'].map((p) => (
+                {['ollama', 'openai', 'anthropic', 'opencode', 'opencode-go', 'custom', 'mock'].map((p) => (
                   <option key={p} value={p}>{p}</option>
                 ))}
               </select>
-              <input
-                className={inputCls}
-                value={config.llm?.model ?? ''}
-                onChange={(e) => patch((c) => ({ ...c, llm: { ...c.llm, model: e.target.value } }))}
-              />
+              {availableModels ? (
+                <select
+                  className={inputCls}
+                  value={config.llm?.model ?? ''}
+                  onChange={(e) => patch((c) => ({ ...c, llm: { ...c.llm, model: e.target.value } }))}
+                >
+                  {availableModels.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  className={inputCls}
+                  value={config.llm?.model ?? ''}
+                  onChange={(e) => patch((c) => ({ ...c, llm: { ...c.llm, model: e.target.value } }))}
+                />
+              )}
             </div>
           </label>
 

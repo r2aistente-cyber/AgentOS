@@ -110,6 +110,11 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 export const getHubInfo = () => req<HubInfo>(`${HUB}/info`)
 export const getHubHealth = () => req<Record<string, unknown>>(`${HUB}/health`)
 
+// Catálogo de modelos por proveedor para dropdowns en el wizard/config.
+export async function listProviderModels(): Promise<Record<string, string[] | null>> {
+  return req<Record<string, string[] | null>>(`${HUB}/models`)
+}
+
 export const listDir = (path?: string) =>
   req<DirListing>(`${HUB}/fs${path ? `?path=${encodeURIComponent(path)}` : ''}`)
 

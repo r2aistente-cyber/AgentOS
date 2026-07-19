@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { createAgent, type AgentConfig } from '../api'
+import { useState, useEffect } from 'react'
+import { createAgent, listProviderModels, type AgentConfig } from '../api'
 import FolderPicker from '../components/FolderPicker'
 
 interface Props {
@@ -11,16 +11,6 @@ const STEPS = ['Identidad', 'Personalidad', 'LLM', 'Tools y canales', 'Resumen']
 
 const PROVIDERS = ['ollama', 'openai', 'anthropic', 'opencode', 'opencode-go', 'custom', 'mock']
 
-// Catálogo del catálogo Go de OpenCode (suscripción, usa OPENCODE_API_KEY).
-const OPENCODE_GO_MODELS = [
-  'deepseek-v4-flash',
-  'deepseek-v4-pro',
-  'kimi-k2.6',
-  'kimi-k2.7-code',
-  'glm-5.2',
-  'minimax-m2.7',
-  'qwen3.6-plus',
-]
 const ALL_TOOLS = [
   'read_file',
   'write_file',
@@ -107,6 +97,15 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [modelCatalog, setModelCatalog] = useState<Record<string, string[] | null>>({})
+
+  // Carga el catálogo de modelos al montar el wizard
+  useEffect(() => {
+    listProviderModels().then(setModelCatalog).catch(() => {})
+  }, [])
+
+  // Modelos disponibles para el proveedor actual (o null si es campo libre)
+  const availableModels: string[] | null = modelCatalog[f.provider] ?? null
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((p) => ({ ...p, [k]: v }))
 
@@ -307,12 +306,24 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
                 </select>
               </Field>
               <Field label="Modelo">
-                <input
-                  className={inputCls}
-                  value={f.model}
-                  onChange={(e) => set('model', e.target.value)}
-                  placeholder="qwen2.5:latest / claude-opus-4-8 / gpt-4o"
-                />
+                {availableModels ? (
+                  <select
+                    className={inputCls}
+                    value={f.model}
+                    onChange={(e) => set('model', e.target.value)}
+                  >
+                    {availableModels.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    className={inputCls}
+                    value={f.model}
+                    onChange={(e) => set('model', e.target.value)}
+                    placeholder="qwen2.5:latest / claude-opus-4-8 / gpt-4o"
+                  />
+                )}
               </Field>
             </div>
             {(f.provider === 'ollama' || f.provider === 'custom') && (
@@ -399,11 +410,11 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
                   </button>
                 </div>
               ))}
-              <datalist id="opencode-go-models">
-                {OPENCODE_GO_MODELS.map((m) => (
-                  <option key={m} value={m} />
-                ))}
-              </datalist>
+              {availableModels && (
+                <p className="text-xs text-slate-500">
+                  {availableModels.length} modelos disponibles en {f.provider}
+                </p>
+              )}
             </div>
           </div>
         )}

@@ -5,6 +5,7 @@ from fastapi import APIRouter
 
 from hub import config
 from hub.api.agents import manager
+from hub.catalog import PROVIDER_CATALOGS
 
 router = APIRouter(prefix="/api/v1/hub", tags=["admin"])
 
@@ -20,6 +21,18 @@ def hub_info() -> dict:
         "port_range": {"start": start, "end": end},
         "agents_total": len(manager.list()),
     }
+
+
+@router.get("/models")
+def list_provider_models(provider: str | None = None) -> dict:
+    """Catálogo de modelos disponibles por proveedor.
+
+    Si provider=None, devuelve todos. None = campo de texto libre.
+    """
+    if provider:
+        models = PROVIDER_CATALOGS.get(provider)
+        return {provider: models}
+    return PROVIDER_CATALOGS
 
 
 @router.get("/health")

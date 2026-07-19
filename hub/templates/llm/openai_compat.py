@@ -24,10 +24,16 @@ class OpenAICompatAdapter(LLMAdapter):
         base, secret_name = _PROVIDERS.get(provider, (None, "openai_key"))
         self._base = config.get("llm.host") or base or "https://api.openai.com/v1"
         self._base = self._base.rstrip("/")
-        self._model = model or config.get("llm.model", "gpt-4o-mini")
+        # #9: el modelo puede venir como "provider/model" — extraer solo el nombre
+        raw_model = model or config.get("llm.model", "gpt-4o-mini")
+        if raw_model and "/" in raw_model:
+            raw_model = raw_model.split("/", 1)[1]
+        self._model = raw_model
         self._temperature = config.get("llm.temperature", 0.7)
         self._max_tokens = config.get("llm.max_tokens", 4096)
         self._key = config.get_secret(secret_name)
+        # cache del proveedor para la lógica de api_key específica
+        self._provider = provider
 
     def _headers(self) -> dict:
         if not self._key:
