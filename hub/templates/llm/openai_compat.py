@@ -145,9 +145,15 @@ class OpenAICompatAdapter(LLMAdapter):
 
         content = choice.get("content") or ""
 
-        # Si no hay tool_calls estándar, buscar DSML nativo de DeepSeek en el content
-        if not tool_calls and content:
-            content, tool_calls = _parse_dsml(content)
+        # Limpiar DSML del content siempre — puede aparecer mezclado con texto normal
+        # incluso cuando ya hubo tool_calls estándar en rondas anteriores
+        if content:
+            if not tool_calls:
+                # Sin tool_calls estándar: parsear DSML como tool_calls reales
+                content, tool_calls = _parse_dsml(content)
+            else:
+                # Con tool_calls estándar: solo limpiar el markup del texto visible
+                content, _ = _parse_dsml(content)
 
         # Si se cortó por max_tokens y es texto puro (sin tools), continuar
         if finish_reason == "length" and content and not tool_calls:
