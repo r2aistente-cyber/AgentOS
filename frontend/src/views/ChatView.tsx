@@ -41,6 +41,7 @@ export default function ChatView({ agent: initialAgent, onBack }: Props) {
   const [activeModel, setActiveModel] = useState<string>('')
   const [context, setContext] = useState<Ctx | null>(null)
   const [sending, setSending] = useState(false)
+  const [thinkingSec, setThinkingSec] = useState(0)
   const [starting, setStarting] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [attachments, setAttachments] = useState<string[]>([])
@@ -192,9 +193,20 @@ export default function ChatView({ agent: initialAgent, onBack }: Props) {
     setError(null)
     setMessages((m) => [...m, { role: 'user', content: text, attachments: atts }])
     setSending(true)
+    setThinkingSec(0)
+
+    // Timer que cuenta segundos mientras el modelo piensa
+    const timer = setInterval(() => setThinkingSec((s) => s + 1), 1000)
+
+    // Timeout de 120s: aborta si el modelo no responde
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 120_000)
+
     const wasNew = !sessionId
     try {
-      const res = await chatWithAgent(agent.name, agent.port, payload, sessionId, activeModel || null)
+      const res = await chatWithAgent(agent.name, agent.port, payload, sessionId, activeModel || null, controller.signal)
+      clearTimeout(timeout)
+      clearInterval(timer)
       setSessionId(res.session_id)
       if (res.context_tokens != null && res.context_limit != null) {
         setContext({ tokens: res.context_tokens, limit: res.context_limit })
@@ -202,13 +214,21 @@ export default function ChatView({ agent: initialAgent, onBack }: Props) {
       setMessages((m) => [...m, { role: 'assistant', content: res.reply, tools: res.tools_used }])
       if (wasNew) await refreshSessions()
     } catch (e) {
-      setError((e as Error).message)
+      clearTimeout(timeout)
+      clearInterval(timer)
+      const errMsg = (e as Error).name === 'AbortError'
+        ? '⏱️ El modelo tardó demasiado en responder (120s). Intenta de nuevo con un mensaje más corto.'
+        : (e as Error).message
+      setError(errMsg)
       setMessages((m) => [
         ...m,
-        { role: 'assistant', content: '⚠️ No se pudo contactar al agente. ¿Está en línea?' },
+        { role: 'assistant', content: errMsg.startsWith('⏱️') ? errMsg : '⚠️ Error al contactar al agente: ' + errMsg },
       ])
     } finally {
+      clearTimeout(timeout)
+      clearInterval(timer)
       setSending(false)
+      setThinkingSec(0)
     }
   }
 
@@ -368,7 +388,10 @@ export default function ChatView({ agent: initialAgent, onBack }: Props) {
         {sending && (
           <div className="flex justify-start">
             <div className="rounded-2xl bg-slate-800 px-4 py-2 text-sm text-slate-400">
-              <span className="animate-pulse">escribiendo…</span>
+              <span className="animate-pulse">🧠 pensando{thinkingSec > 0 ? ` (${thinkingSec}s)` : '…'}</span>
+              {thinkingSec > 30 && (
+                <span className="ml-2 text-amber-400">{thinkingSec > 60 ? '⚠️ lento…' : '⏳'}</span>
+              )}
             </div>
           </div>
         )}
