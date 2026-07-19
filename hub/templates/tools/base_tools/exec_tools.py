@@ -70,7 +70,7 @@ _BYPASS_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r'>\s*[A-Za-z]:\\Windows', re.I), "write to Windows dir"),
 ]
 
-_MAX_CMD_LEN = 512
+_MAX_CMD_LEN = 2048
 
 
 def _classify(command: str) -> str | None:
@@ -110,8 +110,9 @@ def _classify(command: str) -> str | None:
     return None
 
 
-async def exec_command(command: str, timeout: int = 30) -> str:
+async def exec_command(command: str, timeout: int = 120) -> str:
     """Ejecuta un comando de shell y devuelve stdout+stderr (máx 4000 chars)."""
+    timeout = min(timeout, 300)
     reason = _classify(command)
     if reason:
         return f"[BLOQUEADO] {reason}."
@@ -146,8 +147,8 @@ register(ToolDef(
             "command": {"type": "string", "description": "Comando a ejecutar"},
             "timeout": {
                 "type": "integer",
-                "description": "Timeout en segundos (default 30, máx 120)",
-                "default": 30,
+                "description": "Timeout en segundos (default 120, máx 300). Usa 300 para instalaciones o procesos lentos.",
+                "default": 120,
             },
         },
         "required": ["command"],
