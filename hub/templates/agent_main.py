@@ -131,7 +131,22 @@ async def upload(file: UploadFile = File(...)) -> dict:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     dest = DATA_DIR / Path(file.filename).name
     dest.write_bytes(await file.read())
-    return {"filename": dest.name, "size": dest.stat().st_size}
+
+    extracted = ""
+    try:
+        from file_extractor import extract_text
+        extracted = extract_text(dest)
+        if extracted:
+            (DATA_DIR / f"{dest.name}.extracted.txt").write_text(extracted, encoding="utf-8")
+    except Exception:
+        pass
+
+    return {
+        "filename": dest.name,
+        "size": dest.stat().st_size,
+        "extracted": bool(extracted),
+        "preview": extracted[:200] if extracted else None,
+    }
 
 
 @app.get("/api/v1/files")

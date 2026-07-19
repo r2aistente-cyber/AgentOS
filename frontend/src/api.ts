@@ -245,3 +245,22 @@ export async function uploadToAgent(port: number, file: File): Promise<UploadRes
   if (!res.ok) throw new Error(`Upload error: ${res.status}`)
   return res.json()
 }
+
+// ---- Logs y stats del agente (vía Hub) ----
+
+export interface AgentLogs {
+  lines: string[]
+  count: number
+}
+
+export interface AgentStats {
+  cpu_percent: number | null
+  mem_mb: number | null
+  uptime: number
+}
+
+export const getAgentLogs = (name: string, tail = 200) =>
+  req<AgentLogs>(`${HUB}/agents/${encodeURIComponent(name)}/logs?tail=${tail}`)
+
+export const getAgentStats = (name: string) =>
+  req<AgentStats>(`${HUB}/agents/${encodeURIComponent(name)}/stats`)

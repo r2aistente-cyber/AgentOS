@@ -102,3 +102,20 @@ def update_agent_config(name: str, req: ConfigUpdateRequest) -> dict:
         return manager.update_config(name, req.config).to_dict()
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/agents/{name}/logs")
+def get_agent_logs(name: str, tail: int = 100) -> dict:
+    try:
+        lines = manager.get_logs(name, tail=tail)
+        return {"lines": lines, "count": len(lines)}
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/agents/{name}/stats")
+def get_agent_stats(name: str) -> dict:
+    try:
+        return manager.get_stats(name)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))

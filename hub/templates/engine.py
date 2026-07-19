@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import re
+from pathlib import Path
 
 import agent_config as config
 from llm.factory import build_adapter
@@ -11,6 +13,28 @@ from tools import registry
 from tools.orchestrator import ToolOrchestrator
 
 MAX_TOOL_ROUNDS = 6
+_DATA_DIR = config.AGENT_DIR / "data"
+_ATT_PATTERN = re.compile(r'\[Adjuntos:\s*([^\]]+)\]')
+
+
+def _inject_attachments(message: str) -> str:
+    """Reemplaza [Adjuntos: f1, f2] con el contenido extraído de cada archivo."""
+    match = _ATT_PATTERN.search(message)
+    if not match:
+        return message
+
+    filenames = [f.strip() for f in match.group(1).split(",")]
+    blocks: list[str] = []
+    for fname in filenames:
+        extracted = _DATA_DIR / f"{fname}.extracted.txt"
+        if extracted.exists():
+            content = extracted.read_text(encoding="utf-8", errors="replace")
+            blocks.append(f"=== {fname} ===\n{content}\n=== fin ===")
+        else:
+            blocks.append(f"[Archivo adjunto: {fname}]")
+
+    replacement = "\n\n".join(blocks)
+    return _ATT_PATTERN.sub(replacement, message)
 
 
 async def process_message(message: str, session_id: str | None, user_id: str = "default",
@@ -20,8 +44,9 @@ async def process_message(message: str, session_id: str | None, user_id: str = "
 
     system = build_system_prompt()
     history = await session_store.get_history(session_id)
+    expanded = _inject_attachments(message)
     await session_store.add_message(session_id, "user", message)
-    history.append({"role": "user", "content": message})
+    history.append({"role": "user", "content": expanded})
 
     tools_cfg = config.get("tools", {}) or {}
     tools = registry.tools_for_llm(tools_cfg.get("allow", ["*"]), tools_cfg.get("deny", []))

@@ -1,4 +1,5 @@
-import type { AgentInfo } from '../api'
+import { useEffect, useState } from 'react'
+import { getAgentStats, type AgentInfo, type AgentStats } from '../api'
 import StatusBadge from './StatusBadge'
 
 interface Props {
@@ -36,6 +37,12 @@ function Btn({
   )
 }
 
+function formatUptime(seconds: number): string {
+  if (seconds < 60) return `${Math.round(seconds)}s`
+  if (seconds < 3600) return `${Math.round(seconds / 60)}m`
+  return `${Math.round(seconds / 3600)}h`
+}
+
 export default function AgentCard({
   agent,
   busy,
@@ -46,6 +53,30 @@ export default function AgentCard({
   onStop,
 }: Props) {
   const online = agent.status === 'online'
+  const [stats, setStats] = useState<AgentStats | null>(null)
+
+  useEffect(() => {
+    if (!online) {
+      setStats(null)
+      return
+    }
+    let cancelled = false
+    const poll = async () => {
+      try {
+        const s = await getAgentStats(agent.name)
+        if (!cancelled) setStats(s)
+      } catch {
+        /* Hub caído o agente recién iniciado */
+      }
+    }
+    poll()
+    const id = setInterval(poll, 5000)
+    return () => {
+      cancelled = true
+      clearInterval(id)
+    }
+  }, [online, agent.name])
+
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 shadow-sm transition hover:border-slate-700">
       <div className="flex items-start justify-between gap-3">
@@ -66,12 +97,49 @@ export default function AgentCard({
         </div>
       </div>
 
+      {/* Stats de CPU/RAM (solo cuando online y datos disponibles) */}
+      {online && stats && (
+        <div className="mt-2 flex items-center gap-3 text-[11px] text-slate-500">
+          {stats.cpu_percent !== null && (
+            <span title="CPU">
+              CPU{' '}
+              <span
+                className={
+                  stats.cpu_percent > 80
+                    ? 'text-rose-400'
+                    : stats.cpu_percent > 40
+                      ? 'text-amber-400'
+                      : 'text-emerald-400'
+                }
+              >
+                {stats.cpu_percent.toFixed(1)}%
+              </span>
+            </span>
+          )}
+          {stats.mem_mb !== null && (
+            <span title="RAM">
+              MEM{' '}
+              <span className="text-slate-300">
+                {stats.mem_mb >= 1024
+                  ? `${(stats.mem_mb / 1024).toFixed(1)} GB`
+                  : `${stats.mem_mb} MB`}
+              </span>
+            </span>
+          )}
+          {stats.uptime > 0 && (
+            <span title="Tiempo activo">
+              ⬆ <span className="text-slate-400">{formatUptime(stats.uptime)}</span>
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="mt-4 flex flex-wrap gap-2">
         <Btn variant="primary" onClick={() => onChat(agent)} disabled={busy}>
           💬 Chat
         </Btn>
         <Btn onClick={() => onLogs(agent)} disabled={busy}>
-          📊 Logs
+          📋 Logs
         </Btn>
         <Btn onClick={() => onConfig(agent)} disabled={busy}>
           ⚙️ Config

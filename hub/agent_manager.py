@@ -183,6 +183,32 @@ class AgentManager:
             except Exception:  # noqa: BLE001
                 pass
 
+    def get_logs(self, name: str, tail: int = 100) -> list[str]:
+        """Devuelve las últimas N líneas del log del agente."""
+        info = self._require(name)
+        log_path = Path(info.dir) / "logs" / "agent.log"
+        if not log_path.exists():
+            return []
+        lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+        return lines[-tail:] if tail > 0 else lines
+
+    def get_stats(self, name: str) -> dict:
+        """Devuelve CPU% y RAM del proceso del agente (requiere psutil)."""
+        info = self._require(name)
+        proc = self.processes.get(name)
+        if proc is None or not proc.is_alive or proc.pid is None:
+            return {"cpu_percent": None, "mem_mb": None, "uptime": 0}
+        try:
+            import psutil
+            p = psutil.Process(proc.pid)
+            return {
+                "cpu_percent": p.cpu_percent(interval=0.1),
+                "mem_mb": round(p.memory_info().rss / 1024 / 1024, 1),
+                "uptime": round(proc.uptime, 0),
+            }
+        except Exception:
+            return {"cpu_percent": None, "mem_mb": None, "uptime": 0}
+
     # ── Internos ─────────────────────────────────────────────────────────────
 
     def _stop_unlocked(self, name: str) -> AgentInfo:
