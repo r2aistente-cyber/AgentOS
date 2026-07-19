@@ -93,6 +93,20 @@ def restart_agent(name: str) -> dict:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/agents/{name}/token")
+def get_agent_token(name: str) -> dict:
+    """Devuelve el Bearer token del agente para que el frontend lo use en sus requests."""
+    try:
+        cfg = manager.get_config(name)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    token = (cfg.get("security") or {}).get("token")
+    if not token:
+        # Agente sin token (creado antes de Sprint 8) — sin restricción de auth
+        return {"token": None, "auth_required": False}
+    return {"token": token, "auth_required": True}
+
+
 @router.get("/agents/{name}/config")
 def get_agent_config(name: str) -> dict:
     try:

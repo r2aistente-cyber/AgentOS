@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import secrets
 import shutil
 import threading
 from pathlib import Path
@@ -281,6 +282,9 @@ class AgentManager:
         # sandbox por defecto = data/ del propio agente
         merged.setdefault("security", {})
         merged["security"].setdefault("sandbox_paths", [str(agent_dir / "data")])
+        # Generar token único por agente si no viene en el body
+        if not merged["security"].get("token"):
+            merged["security"]["token"] = secrets.token_hex(32)
         return merged
 
 

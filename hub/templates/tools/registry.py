@@ -12,7 +12,8 @@ class ToolDef:
     category: str
     parameters: dict          # JSON Schema para el LLM
     handler: Callable
-    dangerous: bool = False   # requiere confirmación (Sprint 8)
+    dangerous: bool = False        # marcado para auditoría
+    requires_confirm: bool = False # el orchestrator pide confirmación antes de ejecutar
 
 
 _REGISTRY: dict[str, ToolDef] = {}

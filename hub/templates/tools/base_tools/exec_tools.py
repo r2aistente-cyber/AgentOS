@@ -1,35 +1,120 @@
-"""Tool exec_command — ejecuta comandos del sistema.
+"""Tool exec_command — ejecuta comandos del sistema con sandbox de comandos.
 
-Intención: dar al agente capacidad de shell limitada y auditada.
-Sprint 8 endurecerá las restricciones; hoy se bloquean los casos más peligrosos.
+Protecciones:
+  - Lista de binarios bloqueados (destructivos, privilegios, exfiltración)
+  - Intérpretes solo permitidos sin flags de ejecución directa (-c, -e, /c, -Command)
+  - Bloqueo de patrones de encadenamiento peligroso (find -exec, xargs con exec)
+  - Longitud máxima del comando
+  - Timeout configurable
 """
 from __future__ import annotations
 
 import asyncio
+import re
 import shlex
 
 from tools.registry import ToolDef, register
 
-_BLOCKED = {
-    "rm", "rmdir", "del", "format", "mkfs", "dd",
-    "shutdown", "reboot", "halt", "poweroff",
-    "sudo", "su", "runas",
-    "curl", "wget",           # usar fetch_url en su lugar
-    "passwd", "useradd", "userdel",
-    ":(){:|:&};:",            # fork bomb
+# ── Binarios completamente bloqueados ─────────────────────────────────────────
+_BLOCKED_CMDS = {
+    # Destructivos / privilegios
+    "rm", "rmdir", "del", "deltree", "format", "mkfs", "dd", "fdisk",
+    "shutdown", "reboot", "halt", "poweroff", "init",
+    "sudo", "su", "runas", "doas",
+    # Exfiltración de red
+    "curl", "wget", "nc", "ncat", "netcat", "socat",
+    "scp", "sftp", "ftp",
+    # Modificación de usuarios
+    "passwd", "useradd", "userdel", "usermod", "chpasswd",
+    # Ejecución remota
+    "ssh", "rsh",
+    # Fork bomb conocida
+    ":(){:|:&};:",
 }
 
+# ── Intérpretes que admiten ejecución directa de código ───────────────────────
+# Solo están bloqueados cuando van acompañados de las flags de ejecución directa.
+_INTERPRETER_EXEC_FLAGS = {
+    # (binario) → conjunto de flags que habilitan eval directo
+    "python":      {"-c"},
+    "python3":     {"-c"},
+    "python3.11":  {"-c"},
+    "python3.12":  {"-c"},
+    "node":        {"-e", "--eval"},
+    "nodejs":      {"-e", "--eval"},
+    "perl":        {"-e"},
+    "ruby":        {"-e"},
+    "php":         {"-r"},
+    "bash":        {"-c"},
+    "sh":          {"-c"},
+    "zsh":         {"-c"},
+    "fish":        {"-c"},
+    "cmd":         {"/c", "/C"},
+    "cmd.exe":     {"/c", "/C"},
+    "powershell":  {"-command", "-c", "-encodedcommand", "-enc"},
+    "pwsh":        {"-command", "-c", "-encodedcommand", "-enc"},
+}
 
-async def exec_command(command: str, timeout: int = 30) -> str:
-    """Ejecuta un comando de shell y devuelve stdout+stderr (máx 4000 chars)."""
-    # Bloqueo básico de comandos peligrosos
+# ── Patrones de bypass conocidos ──────────────────────────────────────────────
+# Pares (regex, motivo) evaluados contra el comando completo (case-insensitive).
+_BYPASS_PATTERNS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r'\bfind\b.*-exec\b',      re.I), "find -exec"),
+    (re.compile(r'\bxargs\b.*-[iI]\b',     re.I), "xargs exec"),
+    (re.compile(r'\beval\b\s+',            re.I), "eval"),
+    (re.compile(r'\bexec\b\s+',            re.I), "exec"),
+    # env usado como wrapper de otro binario
+    (re.compile(r'\benv\b\s+\S*(python|node|bash|sh|ruby|perl)', re.I), "env wrapping interpreter"),
+    # Redirección a archivo de sistema
+    (re.compile(r'>\s*/etc/',              re.I), "write to /etc"),
+    (re.compile(r'>\s*/sys/',              re.I), "write to /sys"),
+    (re.compile(r'>\s*[A-Za-z]:\\Windows', re.I), "write to Windows dir"),
+]
+
+_MAX_CMD_LEN = 512
+
+
+def _classify(command: str) -> str | None:
+    """Devuelve el motivo de bloqueo o None si el comando es aceptable."""
+    if len(command) > _MAX_CMD_LEN:
+        return f"comando demasiado largo (máx {_MAX_CMD_LEN} chars)"
+
+    # Tokenizar
     try:
         tokens = shlex.split(command, posix=False)
     except ValueError:
         tokens = command.split()
-    first = tokens[0].lower().split("/")[-1].split("\\")[-1].replace(".exe", "") if tokens else ""
-    if first in _BLOCKED:
-        return f"[BLOQUEADO] El comando '{first}' no está permitido."
+
+    if not tokens:
+        return None
+
+    # Extraer nombre del binario (quitar rutas y .exe)
+    binary = tokens[0].lower().replace("\\", "/").split("/")[-1]
+    binary = binary.replace(".exe", "")
+
+    # Binarios completamente bloqueados
+    if binary in _BLOCKED_CMDS:
+        return f"binario bloqueado: '{binary}'"
+
+    # Intérpretes: bloqueados solo con sus flags de ejecución directa
+    if binary in _INTERPRETER_EXEC_FLAGS:
+        flags_lower = {t.lower() for t in tokens[1:]}
+        blocked_flags = _INTERPRETER_EXEC_FLAGS[binary] & flags_lower
+        if blocked_flags:
+            return f"ejecución directa de código con '{binary} {', '.join(blocked_flags)}' bloqueada"
+
+    # Patrones de bypass en el comando completo
+    for pattern, reason in _BYPASS_PATTERNS:
+        if pattern.search(command):
+            return f"patrón peligroso bloqueado: {reason}"
+
+    return None
+
+
+async def exec_command(command: str, timeout: int = 30) -> str:
+    """Ejecuta un comando de shell y devuelve stdout+stderr (máx 4000 chars)."""
+    reason = _classify(command)
+    if reason:
+        return f"[BLOQUEADO] {reason}."
 
     try:
         proc = await asyncio.create_subprocess_shell(
@@ -48,14 +133,22 @@ async def exec_command(command: str, timeout: int = 30) -> str:
 
 register(ToolDef(
     name="exec_command",
-    description="Ejecuta un comando de shell y devuelve la salida. Usar con cautela.",
+    description=(
+        "Ejecuta un comando de shell y devuelve la salida. "
+        "Comandos destructivos y ejecución directa de código (python -c, node -e, bash -c…) están bloqueados."
+    ),
     category="system",
     dangerous=True,
+    requires_confirm=True,
     parameters={
         "type": "object",
         "properties": {
             "command": {"type": "string", "description": "Comando a ejecutar"},
-            "timeout": {"type": "integer", "description": "Timeout en segundos (default 30)", "default": 30},
+            "timeout": {
+                "type": "integer",
+                "description": "Timeout en segundos (default 30, máx 120)",
+                "default": 30,
+            },
         },
         "required": ["command"],
     },

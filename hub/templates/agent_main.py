@@ -1,8 +1,14 @@
-"""Engine base de un agente (Sprint 2) — LLM multi-proveedor + tools + memoria.
+"""Engine base de un agente — LLM multi-proveedor + tools + memoria.
 
 Cada agente recibe UNA COPIA de este archivo y sus paquetes (llm/, tools/,
 security/, memory/). Se lanza con:
     uvicorn agent_main:app --host 127.0.0.1 --port <port>   (cwd = carpeta del agente)
+
+Seguridad (Sprint 8):
+  - Bind a 127.0.0.1 únicamente
+  - CORS restringido a Hub + frontend de desarrollo
+  - Bearer token (security.token en config.yaml) requerido en todas las rutas
+    excepto /api/v1/health (para el health-checker del Hub sin token)
 """
 from __future__ import annotations
 
@@ -11,9 +17,11 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from starlette.middleware.base import BaseHTTPMiddleware
 
 import agent_config as config
 from memory.db import init_db
@@ -25,37 +33,80 @@ AGENT_NAME = config.get("agent.name", config.AGENT_DIR.name)
 DATA_DIR = config.AGENT_DIR / "data"
 _START = time.time()
 
+# ── Token de autenticación ────────────────────────────────────────────────────
+_AGENT_TOKEN: str | None = (config.get("security", {}) or {}).get("token")
+
+# Rutas que no requieren auth (el health-checker del Hub no tiene token)
+_PUBLIC_PATHS = {"/api/v1/health", "/"}
+
+# ── Orígenes permitidos para CORS ─────────────────────────────────────────────
+_HUB_PORT = int((config.get("hub", {}) or {}).get("port", 8234))
+_ALLOWED_ORIGINS = [
+    f"http://localhost:{_HUB_PORT}",
+    f"http://127.0.0.1:{_HUB_PORT}",
+    "http://localhost:5173",    # Vite dev
+    "http://127.0.0.1:5173",
+    "http://localhost:5500",    # pywebview shell
+    "http://127.0.0.1:5500",
+]
+
+
+class _AuthMiddleware(BaseHTTPMiddleware):
+    """Valida Bearer token si la ruta no es pública."""
+
+    async def dispatch(self, request: Request, call_next):
+        if not _AGENT_TOKEN or request.url.path in _PUBLIC_PATHS:
+            return await call_next(request)
+
+        auth = request.headers.get("Authorization", "")
+        if not auth.startswith("Bearer ") or auth[7:] != _AGENT_TOKEN:
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Token de autenticación inválido o ausente"},
+            )
+        return await call_next(request)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    # #3: pre-cargar el modelo local en background para evitar el cold-start
-    # (~80s) en el primer mensaje del usuario. Solo aplica a Ollama.
     if config.get("llm.provider") == "ollama":
         import asyncio
-
         from llm.ollama import OllamaAdapter
-
         asyncio.create_task(OllamaAdapter().warmup())
     yield
 
 
-app = FastAPI(title=f"Agent: {AGENT_NAME}", version="0.2", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app = FastAPI(title=f"Agent: {AGENT_NAME}", version="0.3", lifespan=lifespan)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+    allow_credentials=False,
+)
+app.add_middleware(_AuthMiddleware)
+
+
+# ── Modelos Pydantic ──────────────────────────────────────────────────────────
 
 class ChatRequest(BaseModel):
     message: str
     session_id: str | None = None
     user_id: str = "default"
-    model: str | None = None  # #11: ref "provider/model" para cambiar en caliente
+    model: str | None = None  # ref "provider/model" para cambiar en caliente
 
+
+# ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @app.get("/api/v1/health")
 async def health() -> dict:
-    files_count = len([f for f in DATA_DIR.glob("*") if f.is_file() and not f.name.endswith(".extracted.txt")]) if DATA_DIR.exists() else 0
-
+    files_count = (
+        len([f for f in DATA_DIR.glob("*") if f.is_file() and not f.name.endswith(".extracted.txt")])
+        if DATA_DIR.exists() else 0
+    )
     sessions_count = 0
     tokens_total = 0
     try:
@@ -92,11 +143,6 @@ async def chat(req: ChatRequest) -> dict:
 
 @app.get("/api/v1/models")
 async def models() -> dict:
-    """#10/#11: modelos configurados para este agente + cuál es el default.
-
-    Lee llm.models (lista de {provider, model, label}); si no existe, sintetiza
-    una sola entrada desde llm.provider / llm.model.
-    """
     llm = config.get("llm", {}) or {}
     entries = llm.get("models") or []
     if not entries:
@@ -170,8 +216,11 @@ async def upload(file: UploadFile = File(...)) -> dict:
 async def files() -> list[dict]:
     if not DATA_DIR.exists():
         return []
-    return [{"name": f.name, "size": f.stat().st_size}
-            for f in sorted(DATA_DIR.iterdir()) if f.is_file()]
+    return [
+        {"name": f.name, "size": f.stat().st_size}
+        for f in sorted(DATA_DIR.iterdir())
+        if f.is_file()
+    ]
 
 
 if __name__ == "__main__":

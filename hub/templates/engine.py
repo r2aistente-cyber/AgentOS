@@ -10,7 +10,7 @@ from llm.factory import build_adapter
 from llm.prompts import build_system_prompt
 from memory import session as session_store
 from tools import registry
-from tools.orchestrator import ToolOrchestrator
+from tools.orchestrator import ToolOrchestrator, is_confirmation_message, mark_confirmed
 
 MAX_TOOL_ROUNDS = 6
 _DATA_DIR = config.AGENT_DIR / "data"
@@ -50,6 +50,14 @@ async def process_message(message: str, session_id: str | None, user_id: str = "
 
     tools_cfg = config.get("tools", {}) or {}
     tools = registry.tools_for_llm(tools_cfg.get("allow", ["*"]), tools_cfg.get("deny", []))
+
+    # Si el mensaje es una confirmación, activar el gate para tools pendientes
+    if is_confirmation_message(message):
+        # Marcar todas las dangerous tools como confirmadas para esta sesión
+        from tools.registry import all_tools
+        for t in all_tools():
+            if t.requires_confirm:
+                mark_confirmed(session_id, t.name)
 
     # #11: si el chat manda un ref de modelo, se usa ese (sin reiniciar el agente).
     adapter = build_adapter(model_ref)
