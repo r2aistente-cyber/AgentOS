@@ -11,29 +11,68 @@ const STEPS = ['Identidad', 'Personalidad', 'LLM', 'Tools y canales', 'Resumen']
 
 const PROVIDERS = ['ollama', 'openai', 'anthropic', 'opencode', 'opencode-go', 'custom', 'mock']
 
-// Catálogo estático para proveedores que no exponen /models dinámicamente.
+// Catálogo estático obtenido de los endpoints reales de cada proveedor.
 // Se funde con el catálogo del Hub; el dinámico (Ollama) prevalece.
 const STATIC_CATALOG: Record<string, string[]> = {
+  // opencode = https://opencode.ai/zen/v1  (todos los modelos premium)
   'opencode': [
+    // Claude
+    'claude-fable-5',
     'claude-opus-4-8',
+    'claude-sonnet-5',
     'claude-sonnet-4-6',
     'claude-haiku-4-5',
-    'gpt-4o',
-    'gpt-4o-mini',
-    'gpt-4.1',
+    // GPT
+    'gpt-5.5',
+    'gpt-5.4',
+    'gpt-5.4-mini',
+    'gpt-5',
+    'gpt-5-nano',
+    // Gemini
+    'gemini-3.5-flash',
+    'gemini-3.1-pro',
+    'gemini-3-flash',
+    // DeepSeek
+    'deepseek-v4-pro',
+    'deepseek-v4-flash',
+    // Otros
+    'grok-4.5',
+    'kimi-k2.6',
+    'glm-5.2',
+    'qwen3.6-plus',
+    'minimax-m3',
+    // Free tier
+    'deepseek-v4-flash-free',
   ],
+  // opencode-go = https://opencode.ai/zen/go/v1  (modelos Go/open-source)
   'opencode-go': [
     'deepseek-v4-pro',
     'deepseek-v4-flash',
+    'kimi-k3',
+    'kimi-k2.7-code',
     'kimi-k2.6',
+    'kimi-k2.5',
     'glm-5.2',
-    'qwen3-235b',
+    'glm-5.1',
+    'glm-5',
+    'qwen3.7-max',
+    'qwen3.7-plus',
+    'qwen3.6-plus',
+    'qwen3.5-plus',
+    'minimax-m3',
+    'minimax-m2.7',
+    'mimo-v2.5-pro',
+    'mimo-v2.5',
+    'grok-4.5',
+    'hy3-preview',
   ],
+  // anthropic = api.anthropic.com directo
   'anthropic': [
     'claude-opus-4-8',
     'claude-sonnet-4-6',
     'claude-haiku-4-5',
   ],
+  // openai = api.openai.com directo
   'openai': [
     'gpt-4o',
     'gpt-4o-mini',
