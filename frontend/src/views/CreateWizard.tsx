@@ -69,7 +69,7 @@ interface Form {
   temperature: number
   num_ctx: number
   api_key: string
-  extra_models: { provider: string; model: string }[]
+  extra_models: { provider: string; model: string; api_key?: string }[]
   tools: string[]
   web: boolean
   whatsapp: boolean
@@ -178,7 +178,12 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
           { provider: f.provider, model: f.model, label: f.model },
           ...f.extra_models
             .filter((m) => m.model.trim())
-            .map((m) => ({ provider: m.provider, model: m.model.trim(), label: m.model.trim() })),
+            .map((m) => ({
+              provider: m.provider,
+              model: m.model.trim(),
+              label: m.model.trim(),
+              ...(m.api_key?.trim() ? { api_key: m.api_key.trim() } : {}),
+            })),
         ],
       },
       tools: { allow: f.tools },
@@ -425,58 +430,76 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
               {f.extra_models.length === 0 && (
                 <p className="text-xs text-slate-600">Ninguno. El agente usará solo el modelo primario.</p>
               )}
-              {f.extra_models.map((em, i) => (
-                <div key={i} className="mb-2 flex items-center gap-2">
-                  <select
-                    value={em.provider}
-                    onChange={(e) => {
-                      const next = [...f.extra_models]
-                      next[i] = { ...next[i], provider: e.target.value, model: '' }
-                      set('extra_models', next)
-                    }}
-                    className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-100"
-                  >
-                    {PROVIDERS.map((p) => (
-                      <option key={p} value={p}>{p}</option>
-                    ))}
-                  </select>
-                  {modelCatalog[em.provider] ? (
-                    <select
-                      value={em.model}
-                      onChange={(e) => {
-                        const next = [...f.extra_models]
-                        next[i] = { ...next[i], model: e.target.value }
-                        set('extra_models', next)
-                      }}
-                      className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-100"
-                    >
-                      <option value="">— elige modelo —</option>
-                      {modelCatalog[em.provider]!.map((m) => (
-                        <option key={m} value={m}>{m}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      value={em.model}
-                      onChange={(e) => {
-                        const next = [...f.extra_models]
-                        next[i] = { ...next[i], model: e.target.value }
-                        set('extra_models', next)
-                      }}
-                      placeholder="id del modelo"
-                      className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-indigo-500"
-                    />
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => set('extra_models', f.extra_models.filter((_, j) => j !== i))}
-                    className="text-slate-500 hover:text-rose-400"
-                    title="Quitar"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
+              {f.extra_models.map((em, i) => {
+                const needsExtraKey = ['openai', 'anthropic', 'opencode', 'opencode-go'].includes(em.provider)
+                return (
+                  <div key={i} className="mb-2 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={em.provider}
+                        onChange={(e) => {
+                          const next = [...f.extra_models]
+                          next[i] = { ...next[i], provider: e.target.value, model: '', api_key: '' }
+                          set('extra_models', next)
+                        }}
+                        className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-100"
+                      >
+                        {PROVIDERS.map((p) => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                      {modelCatalog[em.provider] ? (
+                        <select
+                          value={em.model}
+                          onChange={(e) => {
+                            const next = [...f.extra_models]
+                            next[i] = { ...next[i], model: e.target.value }
+                            set('extra_models', next)
+                          }}
+                          className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-100"
+                        >
+                          <option value="">— elige modelo —</option>
+                          {modelCatalog[em.provider]!.map((m) => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          value={em.model}
+                          onChange={(e) => {
+                            const next = [...f.extra_models]
+                            next[i] = { ...next[i], model: e.target.value }
+                            set('extra_models', next)
+                          }}
+                          placeholder="id del modelo"
+                          className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-indigo-500"
+                        />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => set('extra_models', f.extra_models.filter((_, j) => j !== i))}
+                        className="text-slate-500 hover:text-rose-400"
+                        title="Quitar"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    {needsExtraKey && (
+                      <input
+                        type="password"
+                        value={em.api_key ?? ''}
+                        onChange={(e) => {
+                          const next = [...f.extra_models]
+                          next[i] = { ...next[i], api_key: e.target.value }
+                          set('extra_models', next)
+                        }}
+                        placeholder={`API key para ${em.provider} (sk-… / oc-…)`}
+                        className="w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-indigo-500"
+                      />
+                    )}
+                  </div>
+                )
+              })}
               {availableModels && (
                 <p className="text-xs text-slate-500">
                   {availableModels.length} modelos disponibles en {f.provider}

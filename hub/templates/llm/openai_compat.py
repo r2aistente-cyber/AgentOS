@@ -20,7 +20,8 @@ _PROVIDERS = {
 
 
 class OpenAICompatAdapter(LLMAdapter):
-    def __init__(self, provider: str = "openai", model: str | None = None) -> None:
+    def __init__(self, provider: str = "openai", model: str | None = None,
+                 api_key: str | None = None) -> None:
         base, secret_name = _PROVIDERS.get(provider, (None, "openai_key"))
         # llm.host solo se respeta para proveedores "custom" (sin URL hardcodeada).
         # Para openai/opencode/opencode-go se usa siempre la URL canónica.
@@ -33,7 +34,8 @@ class OpenAICompatAdapter(LLMAdapter):
         self._model = raw_model
         self._temperature = config.get("llm.temperature", 0.7)
         self._max_tokens = config.get("llm.max_tokens", 4096)
-        self._key = config.get_secret(secret_name)
+        # api_key explícita (del models list) tiene precedencia sobre get_secret
+        self._key = api_key or config.get_secret(secret_name)
         # cache del proveedor para la lógica de api_key específica
         self._provider = provider
 
