@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Javier Castaño — Senior QA Tester</title>
+<style>
+  :root {
+    --bg: #0f0f0f;
+    --surface: #1a1a1a;
+    --surface2: #242424;
+    --text: #e8e8e8;
+    --text2: #a0a0a0;
+    --accent: #6c5ce7;
+    --accent2: #a29bfe;
+    --green: #00b894;
+    --border: #333;
+    --radius: 12px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 20px;
+  }
+
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    background: var(--surface);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  }
+
+  /* Header */
+  .header {
+    background: linear-gradient(135deg, var(--accent), #4834d4);
+    padding: 50px 50px 40px;
+    position: relative;
+  }
+
+  .header h1 {
+    font-size: 2.8em;
+    font-weight: 800;
+    letter-spacing: -1px;
+    margin-bottom: 6px;
+  }
+
+  .header .title {
+    font-size: 1.2em;
+    opacity: .9;
+    font-weight: 500;
+  }
+
+  .header .badge {
+    display: inline-block;
+    background: rgba(255,255,255,.15);
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: .8em;
+    margin-top: 12px;
+    backdrop-filter: blur(4px);
+  }
+
+  .contact-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 24px;
+    margin-top: 20px;
+    font-size: .9em;
+    opacity: .85;
+  }
+
+  .contact-bar a {
+    color: white;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .contact-bar a:hover { text-decoration: underline; }
+
+  /* Content */
+  .content {
+    padding: 40px 50px;
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 40px;
+  }
+
+  @media (max-width: 700px) {
+    .header { padding: 30px 24px; }
+    .header h1 { font-size: 2em; }
+    .content { padding: 24px; grid-template-columns: 1fr; }
+  }
+
+  /* Main column */
+  .main-col { min-width: 0; }
+
+  .section { margin-bottom: 32px; }
+
+  .section-title {
+    font-size: 1em;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--accent2);
+    font-weight: 600;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .exp-item { margin-bottom: 24px; }
+
+  .exp-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+  }
+
+  .exp-header h3 {
+    font-size: 1.1em;
+    font-weight: 600;
+  }
+
+  .exp-header .company {
+    color: var(--accent2);
+  }
+
+  .exp-header .date {
+    font-size: .85em;
+    color: var(--text2);
+  }
+
+  .exp-item p {
+    font-size: .92em;
+    color: var(--text2);
+    margin-bottom: 8px;
+  }
+
+  .exp-item ul {
+    list-style: none;
+    font-size: .9em;
+  }
+
+  .exp-item ul li {
+    padding: 3px 0;
+    padding-left: 16px;
+    position: relative;
+    color: var(--text2);
+  }
+
+  .exp-item ul li::before {
+    content: "▸";
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+  }
+
+  /* Sidebar */
+  .sidebar { min-width: 0; }
+
+  .sidebar .section { margin-bottom: 28px; }
+
+  .skill-group { margin-bottom: 14px; }
+
+  .skill-group h4 {
+    font-size: .85em;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text2);
+    margin-bottom: 6px;
+  }
+
+  .skill-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .skill-tag {
+    background: var(--surface2);
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: .82em;
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  .skill-tag.accent {
+    background: rgba(108,92,231,.15);
+    border-color: var(--accent);
+    color: var(--accent2);
+  }
+
+  .skill-tag.green {
+    background: rgba(0,184,148,.12);
+    border-color: var(--green);
+    color: var(--green);
+  }
+
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: .88em;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .info-row .label { color: var(--text2); }
+  .info-row .value { color: var(--text); font-weight: 500; }
+
+  /* Profile */
+  .profile-text {
+    font-size: .95em;
+    color: var(--text2);
+    line-height: 1.7;
+    margin-bottom: 24px;
+  }
+
+  /* Print */
+  @media print {
+    body { background: white; padding: 0; }
+    .container { box-shadow: none; border-radius: 0; }
+    .header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .skill-tag { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>Javier Castaño</h1>
+    <div class="title">Senior QA Tester</div>
+    <div class="badge">📍 Colombia · Remoto · Disponible para reubicación USA</div>
+    <div class="contact-bar">
+      <a href="mailto:xavier2236@gmail.com">✉️ xavier2236@gmail.com</a>
+      <a href="tel:+573192270876">📞 +57 319 227 0876</a>
+      <a href="https://www.linkedin.com/in/javier-enrique-casta%C3%B1o-roldan-3a196333b/" target="_blank">🔗 LinkedIn</a>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div class="content">
+
+    <!-- Main -->
+    <div class="main-col">
+
+      <!-- Profile -->
+      <div class="section">
+        <div class="section-title">Perfil Profesional</div>
+        <div class="profile-text">
+          Senior QA Tester con más de 8 años de experiencia en aseguramiento de calidad de software, 
+          actualmente en <strong>Electronic Arts (EA)</strong> en el proyecto <strong>EA Sports FC 2026-2027</strong>. 
+          Experiencia en pruebas funcionales, automatización con <strong>Selenium</strong>, gestión de defectos 
+          con Jira/JaaS y colaboración directa con equipos de desarrollo y producción en proyectos 
+          AAA y gubernamentales (Colpensiones). Abogado de formación con perfil analítico que combina 
+          su formación jurídica con tecnología para un enfoque de calidad preciso, documentado 
+          y centrado en el cumplimiento de requisitos. Inglés B2.
+        </div>
+      </div>
+
+      <!-- Experience -->
+      <div class="section">
+        <div class="section-title">Experiencia Laboral</div>
+
+        <div class="exp-item">
+          <div class="exp-header">
+            <h3>Senior QA Tester <span class="company">— Electronic Arts (EA)</span></h3>
+            <span class="date">Oct 2025 — Actualidad</span>
+          </div>
+          <p><strong>Proyecto: EA Sports FC 2026-2027</strong> — Pruebas de calidad en videojuegos AAA a nivel global.</p>
+          <ul>
+            <li>Ejecución exhaustiva de pruebas funcionales en diferentes módulos del juego</li>
+            <li>Participación en etapas finales de validación y pruebas de aceptación pre-lanzamiento</li>
+            <li>Colaboración con equipos de usuarios finales (devs y jugadores clave) para validar estándares de calidad</li>
+            <li>Identificación, documentación y seguimiento de defectos con <strong>Jira</strong> y <strong>JaaS</strong></li>
+            <li>Elaboración de reportes detallados de regresión y cobertura de pruebas</li>
+            <li>Análisis de requisitos funcionales y no funcionales para identificar riesgos</li>
+          </ul>
+        </div>
+
+        <div class="exp-item">
+          <div class="exp-header">
+            <h3>Agente Bilingüe / Soporte de Aplicación <span class="company">— Peak Support</span></h3>
+            <span class="date">Abr 2025 — Oct 2025</span>
+          </div>
+          <ul>
+            <li>Seguimiento de tickets usando <strong>Salesforce</strong></li>
+            <li>Soporte funcional y técnico a usuarios finales en inglés</li>
+          </ul>
+        </div>
+
+        <div class="exp-item">
+          <div class="exp-header">
+            <h3>Analista de Calidad Medium <span class="company">— Cromasoft S.A.S.</span></h3>
+            <span class="date">May 2017 — Jun 2023</span>
+          </div>
+          <p>Proyecto: Reconocimiento de Prestaciones Económicas Colpensiones. Líder técnico In House DSI Colpensiones.</p>
+          <ul>
+            <li>Pruebas funcionales, no-funcionales, de seguridad y seguimiento de calidad</li>
+            <li>Estructuración de planes de proyecto con cliente e implementación en producción</li>
+            <li><strong>Creación y ejecución de sets de pruebas automatizadas con Selenium</strong> en ambiente QA</li>
+            <li>Versionamiento y catalogaciones en producción — informes a Presidencia de Colpensiones</li>
+            <li>Trabajo remoto desde 2020</li>
+          </ul>
+        </div>
+
+        <div class="exp-item">
+          <div class="exp-header">
+            <h3>Soporte a Aplicaciones <span class="company">— Actualize Colombia S.A.S.</span></h3>
+            <span class="date">Dic 2016 — May 2017</span>
+          </div>
+          <ul>
+            <li>Soporte técnico a asegurados en España e Inglaterra (telefónico y chat)</li>
+            <li>Asesoramiento en instalación de programas y mantenimiento de equipos</li>
+          </ul>
+        </div>
+
+        <div class="exp-item">
+          <div class="exp-header">
+            <h3>Agente Call Center <span class="company">— Jazztel (España)</span></h3>
+            <span class="date">Jun 2016 — Dic 2016</span>
+          </div>
+          <ul>
+            <li>Soporte telefónico a usuarios de telefonía móvil, redes WiFi e internet</li>
+            <li>Atención al cliente y resolución de incidencias técnicas</li>
+          </ul>
+        </div>
+
+        <div class="exp-item">
+          <div class="exp-header">
+            <h3>Soporte Técnico / Reparación de PCs <span class="company">— Independiente</span></h3>
+            <span class="date">Varios</span>
+          </div>
+          <ul>
+            <li>Instalación de sistemas operativos (Windows, Linux)</li>
+            <li>Ensamblaje y reparación de equipos de cómputo</li>
+            <li>Diagnóstico y resolución de fallas de hardware y software</li>
+            <li>Mantenimiento preventivo y correctivo de PCs</li>
+          </ul>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+
+      <!-- Contact -->
+      <div class="section">
+        <div class="section-title">Información</div>
+        <div class="info-row"><span class="label">Ubicación</span><span class="value">Colombia</span></div>
+        <div class="info-row"><span class="label">Modalidad</span><span class="value">Remoto</span></div>
+        <div class="info-row"><span class="label">Inglés</span><span class="value">B2</span></div>
+        <div class="info-row"><span class="label">Experiencia</span><span class="value">8+ años</span></div>
+      </div>
+
+      <!-- Skills -->
+      <div class="section">
+        <div class="section-title">Habilidades</div>
+
+        <div class="skill-group">
+          <h4>QA & Testing</h4>
+          <div class="skill-tags">
+            <span class="skill-tag accent">Pruebas funcionales</span>
+            <span class="skill-tag accent">Manual Testing</span>
+            <span class="skill-tag accent">Gestión de calidad</span>
+            <span class="skill-tag accent">Reporte de bugs</span>
+            <span class="skill-tag accent">Planes de prueba</span>
+            <span class="skill-tag accent">Pruebas de aceptación</span>
+            <span class="skill-tag accent">Regresión</span>
+          </div>
+        </div>
+
+        <div class="skill-group">
+          <h4>Herramientas</h4>
+          <div class="skill-tags">
+            <span class="skill-tag">Jira</span>
+            <span class="skill-tag">JaaS</span>
+            <span class="skill-tag">Salesforce</span>
+            <span class="skill-tag">Selenium</span>
+            <span class="skill-tag">SQL</span>
+            <span class="skill-tag">Power BI</span>
+            <span class="skill-tag">Excel</span>
+          </div>
+        </div>
+
+        <div class="skill-group">
+          <h4>🤖 IA & Herramientas Modernas</h4>
+          <div class="skill-tags">
+            <span class="skill-tag green">Ollama</span>
+            <span class="skill-tag green">OpenCode (DeepSeek)</span>
+            <span class="skill-tag green">Claude Code</span>
+            <span class="skill-tag green">Prompt Engineering</span>
+            <span class="skill-tag green">Automatización con IA</span>
+            <span class="skill-tag green">Asistentes de IA</span>
+          </div>
+        </div>
+
+        <div class="skill-group">
+          <h4>Idiomas</h4>
+          <div class="skill-tags">
+            <span class="skill-tag">Español — Nativo</span>
+            <span class="skill-tag accent">Inglés — B2</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Education -->
+      <div class="section">
+        <div class="section-title">Educación</div>
+        <div class="info-row"><span class="label">Título</span><span class="value">Abogado</span></div>
+        <div class="info-row"><span class="label">Universidad</span><span class="value">Autónoma Latinoamericana</span></div>
+        <div class="info-row"><span class="label">Año</span><span class="value">2011</span></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

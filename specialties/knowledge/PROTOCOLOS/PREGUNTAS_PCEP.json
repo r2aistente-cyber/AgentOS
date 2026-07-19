@@ -1,0 +1,272 @@
+[
+  {
+    "id": 1,
+    "tema": "Variables",
+    "tipo": "opcion_multiple",
+    "pregunta": "¿Cuál es la salida de este código?\n\nx = 10\nx = \"texto\"\nprint(x)",
+    "opciones": ["a) 10", "b) texto", "c) Error", "d) 10texto"],
+    "respuesta": "b) texto",
+    "explicacion": "Python es de tipado dinámico. La variable x primero almacena un entero, luego se reasigna a un string. print(x) muestra el último valor asignado."
+  },
+  {
+    "id": 2,
+    "tema": "Tipos de datos",
+    "tipo": "opcion_multiple",
+    "pregunta": "¿Cuál de los siguientes NO es un tipo de dato built-in en Python?",
+    "opciones": ["a) int", "b) float", "c) char", "d) bool"],
+    "respuesta": "c) char",
+    "explicacion": "Python no tiene un tipo 'char' como C/C++. Los caracteres individuales son strings de longitud 1 (str)."
+  },
+  {
+    "id": 3,
+    "tema": "Listas",
+    "tipo": "opcion_multiple",
+    "pregunta": "¿Qué imprime este código?\n\nlista = [1, 2, 3, 4, 5]\nprint(lista[1:3])",
+    "opciones": ["a) [1, 2, 3]", "b) [2, 3]", "c) [2, 3, 4]", "d) [1, 2]"],
+    "respuesta": "b) [2, 3]",
+    "explicacion": "El slicing [1:3] toma desde el índice 1 (inclusive) hasta el 3 (exclusive). Los elementos en índices 1 y 2 son 2 y 3."
+  },
+  {
+    "id": 4,
+    "tema": "Strings",
+    "tipo": "opcion_multiple",
+    "pregunta": "¿Qué método usarías para convertir 'hola mundo' en ['hola', 'mundo']?",
+    "opciones": ["a) .split()", "b) .join()", "c) .replace()", "d) .strip()"],
+    "respuesta": "a) .split()",
+    "explicacion": "str.split() separa un string por espacios (por defecto) y devuelve una lista de substrings."
+  },
+  {
+    "id": 5,
+    "tema": "Condicionales",
+    "tipo": "opcion_multiple",
+    "pregunta": "¿Qué imprime este código?\n\nx = 5\nif x > 10:\n    print(\"A\")\nelif x > 3:\n    print(\"B\")\nelse:\n    print(\"C\")",
+    "opciones": ["a) A", "b) B", "c) C", "d) Error"],
+    "respuesta": "b) B",
+    "explicacion": "x = 5 no es > 10, pero sí es > 3, por lo que ejecuta el elif e imprime B."
+  },
+  {
+    "id": 6,
+    "tema": "Bucles",
+    "tipo": "opcion_multiple",
+    "pregunta": "¿Cuántas veces se ejecuta este bucle?\n\nfor i in range(5):\n    print(i)",
+    "opciones": ["a) 4", "b) 5", "c) 6", "d) 0"],
+    "respuesta": "b) 5",
+    "explicacion": "range(5) genera números del 0 al 4, que son 5 valores. El bucle se ejecuta 5 veces."
+  },
+  {
+    "id": 7,
+    "tema": "Funciones",
+    "tipo": "opcion_multiple",
+    "pregunta": "¿Qué imprime este código?\n\ndef suma(a, b):\n    return a + b\n\nprint(suma(3, 4))",
+    "opciones": ["a) 7", "b) 34", "c) Error", "d) None"],
+    "respuesta": "a) 7",
+    "explicacion": "La función suma recibe dos parámetros y retorna su suma aritmética. 3 + 4 = 7."
+  },
+  {
+    "id": 8,
+    "tema": "Diccionarios",
+    "tipo": "opcion_multiple",
+    "pregunta": "¿Cómo accedes al valor 'Python' en este diccionario?\n\nlenguajes = {'nombre': 'Python', 'año': 1991}",
+    "opciones": ["a) lenguajes[0]", "b) lenguajes['nombre']", "c) lenguajes.nombre", "d) lenguajes.get(0)"],
+    "respuesta": "b) lenguajes['nombre']",
+    "explicacion": "En los diccionarios se accede por clave (key), no por índice. La clave 'nombre' tiene el valor 'Python'."
+  },
+  {
+    "id": 9,
+    "tema": "Excepciones",
+    "tipo": "opcion_multiple",
+    "pregunta": "¿Qué bloque se ejecuta SIEMPRE, haya o no error?",
+    "opciones": ["a) try", "b) except", "c) finally", "d) else"],
+    "respuesta": "c) finally",
+    "explicacion": "El bloque finally se ejecuta siempre, sin importar si ocurrió una excepción o no. Es ideal para limpieza de recursos."
+  },
+  {
+    "id": 10,
+    "tema": "List comprehensions",
+    "tipo": "opcion_multiple",
+    "pregunta": "¿Qué genera esta expresión?\n\n[x**2 for x in range(4)]",
+    "opciones": ["a) [0, 1, 4, 9]", "b) [1, 4, 9, 16]", "c) [0, 2, 4, 6]", "d) [0, 1, 2, 3]"],
+    "respuesta": "a) [0, 1, 4, 9]",
+    "explicacion": "range(4) genera 0,1,2,3. x**2 eleva cada uno al cuadrado: 0,1,4,9."
+  },
+  {
+    "id": 11,
+    "tema": "Booleanos",
+    "tipo": "falso_verdadero",
+    "pregunta": "¿Es verdadero o falso?\n\nbool([]) devuelve False",
+    "opciones": ["a) Verdadero", "b) Falso"],
+    "respuesta": "a) Verdadero",
+    "explicacion": "Las listas vacías, strings vacíos, 0, None, etc. se evalúan como False en contexto booleano."
+  },
+  {
+    "id": 12,
+    "tema": "Operadores",
+    "tipo": "opcion_multiple",
+    "pregunta": "¿Qué operador se usa para verificar si dos valores NO son iguales?",
+    "opciones": ["a) =!", "b) !=", "c) <>", "d) not =="],
+    "respuesta": "b) !=",
+    "explicacion": "El operador '!=' es el estándar en Python para desigualdad. '<>' también funcionaba en Python 2 pero fue eliminado."
+  },
+  {
+    "id": 13,
+    "tema": "Tuplas",
+    "tipo": "opcion_multiple",
+    "pregunta": "¿Qué característica distingue a una tupla de una lista?",
+    "opciones": ["a) Es mutable", "b) Es inmutable", "c) Es más rápida", "d) Puede tener tipos mixtos"],
+    "respuesta": "b) Es inmutable",
+    "explicacion": "Las tuplas no pueden modificarse después de creadas. Las listas sí (son mutables)."
+  },
+  {
+    "id": 14,
+    "tema": "Archivos",
+    "tipo": "opcion_multiple",
+    "pregunta": "¿Qué modo abre un archivo para escritura SOBRESCRIBIENDO el contenido existente?",
+    "opciones": ["a) 'r'", "b) 'a'", "c) 'w'", "d) 'x'"],
+    "respuesta": "c) 'w'",
+    "explicacion": "'w' (write) abre el archivo para escritura y sobrescribe cualquier contenido existente. 'a' agrega al final."
+  },
+  {
+    "id": 15,
+    "tema": "Módulos",
+    "tipo": "opcion_multiple",
+    "pregunta": "¿Cuál es la forma correcta de importar solo la función sqrt del módulo math?",
+    "opciones": ["a) import math.sqrt", "b) from math import sqrt", "c) include math.sqrt", "d) from sqrt import math"],
+    "respuesta": "b) from math import sqrt",
+    "explicacion": "La sintaxis 'from módulo import función' importa solo esa función específica, no todo el módulo."
+  },
+  {
+    "id": 16,
+    "tema": "PCEP",
+    "tipo": "practico",
+    "pregunta": "🔧 RETO RÁPIDO:\n\nEscribe una función que reciba una lista de números y devuelva solo los pares.\n\nEjemplo:\nentrada: [1, 2, 3, 4, 5, 6]\nsalida: [2, 4, 6]",
+    "opciones": [],
+    "respuesta": "def pares(lista):\n    return [n for n in lista if n % 2 == 0]",
+    "explicacion": "Usamos list comprehension con condición if n % 2 == 0 para filtrar solo los pares."
+  },
+  {
+    "id": 17,
+    "tema": "Strings",
+    "tipo": "opcion_multiple",
+    "pregunta": "¿Qué imprime?\n\nprint(\"Hola\" * 3)",
+    "opciones": ["a) HolaHolaHola", "b) ['Hola', 'Hola', 'Hola']", "c) Error", "d) Hola 3"],
+    "respuesta": "a) HolaHolaHola",
+    "explicacion": "El operador * en strings repite el contenido. 'Hola' * 3 = 'HolaHolaHola'."
+  },
+  {
+    "id": 18,
+    "tema": "PCEP",
+    "tipo": "practico",
+    "pregunta": "🔧 RETO RÁPIDO:\n\nEscribe un programa que cuente cuántas vocales tiene una palabra ingresada por el usuario.",
+    "opciones": [],
+    "respuesta": "palabra = input('Ingresa una palabra: ')\nvocales = 'aeiouáéíóúAEIOUÁÉÍÓÚ'\nconteo = sum(1 for c in palabra if c in vocales)\nprint(f'Vocales encontradas: {conteo}')",
+    "explicacion": "Recorremos cada carácter y verificamos si está en el string de vocales, contando las coincidencias."
+  },
+  {
+    "id": 19,
+    "tema": "Funciones",
+    "tipo": "opcion_multiple",
+    "pregunta": "¿Qué es el valor por defecto de return si no se especifica?",
+    "opciones": ["a) 0", "b) None", "c) False", "d) \"\""],
+    "respuesta": "b) None",
+    "explicacion": "En Python, si una función no tiene return explícito, devuelve None automáticamente."
+  },
+  {
+    "id": 20,
+    "tema": "Excepciones",
+    "tipo": "opcion_multiple",
+    "pregunta": "¿Qué excepción lanza Python al dividir por cero?",
+    "opciones": ["a) ValueError", "b) TypeError", "c) ZeroDivisionError", "d) ArithmeticError"],
+    "respuesta": "c) ZeroDivisionError",
+    "explicacion": "Python tiene una excepción específica para división entre cero: ZeroDivisionError."
+  },
+  {
+    "id": 21,
+    "tema": "PCEP",
+    "tipo": "practico",
+    "pregunta": "🔧 RETO RÁPIDO:\n\nEscribe un programa que pida al usuario una frase y muestre cuántas palabras tiene.",
+    "opciones": [],
+    "respuesta": "frase = input('Ingresa una frase: ')\npalabras = frase.split()\nprint(f'La frase tiene {len(palabras)} palabras.')",
+    "explicacion": "split() divide la frase por espacios. len() cuenta los elementos resultantes."
+  },
+  {
+    "id": 22,
+    "tema": "Listas",
+    "tipo": "opcion_multiple",
+    "pregunta": "¿Qué método agrega un elemento al FINAL de una lista?",
+    "opciones": ["a) .add()", "b) .insert()", "c) .append()", "d) .push()"],
+    "respuesta": "c) .append()",
+    "explicacion": "list.append(x) agrega x al final de la lista. .insert(pos, x) lo agrega en una posición específica."
+  },
+  {
+    "id": 23,
+    "tema": "PCEP",
+    "tipo": "practico",
+    "pregunta": "🔧 RETO RÁPIDO:\n\nEscribe un programa que genere los primeros 10 números de la serie Fibonacci.",
+    "opciones": [],
+    "respuesta": "a, b = 0, 1\nfor _ in range(10):\n    print(a, end=' ')\n    a, b = b, a + b",
+    "explicacion": "La asignación múltiple a, b = b, a+b permite generar la serie sin variable temporal."
+  },
+  {
+    "id": 24,
+    "tema": "Booleanos",
+    "tipo": "falso_verdadero",
+    "pregunta": "¿Es verdadero o falso?\n\n'5' == 5 devuelve True en Python",
+    "opciones": ["a) Verdadero", "b) Falso"],
+    "respuesta": "b) Falso",
+    "explicacion": "Python diferencia tipos. '5' (string) y 5 (int) NO son iguales porque son tipos distintos."
+  },
+  {
+    "id": 25,
+    "tema": "Funciones",
+    "tipo": "opcion_multiple",
+    "pregunta": "¿Qué imprime?\n\ndef test(a, b=2, c=3):\n    return a + b + c\n\nprint(test(1))",
+    "opciones": ["a) 6", "b) 3", "c) Error", "d) 1"],
+    "respuesta": "a) 6",
+    "explicacion": "a=1, b toma el valor por defecto 2, c toma el valor por defecto 3. 1+2+3=6."
+  },
+  {
+    "id": 26,
+    "tema": "PCEP",
+    "tipo": "practico",
+    "pregunta": "🔧 RETO RÁPIDO:\n\nEscribe una función que determine si un número es primo.",
+    "opciones": [],
+    "respuesta": "def es_primo(n):\n    if n < 2:\n        return False\n    for i in range(2, int(n**0.5) + 1):\n        if n % i == 0:\n            return False\n    return True",
+    "explicacion": "Un número primo solo es divisible por 1 y sí mismo. Solo necesitamos verificar hasta la raíz cuadrada."
+  },
+  {
+    "id": 27,
+    "tema": "Diccionarios",
+    "tipo": "opcion_multiple",
+    "pregunta": "¿Qué método devuelve TODAS las claves de un diccionario?",
+    "opciones": ["a) .values()", "b) .items()", "c) .keys()", "d) .all()"],
+    "respuesta": "c) .keys()",
+    "explicacion": "dict.keys() devuelve una vista con todas las claves. .values() devuelve los valores, .items() devuelve pares (clave, valor)."
+  },
+  {
+    "id": 28,
+    "tema": "Archivos",
+    "tipo": "opcion_multiple",
+    "pregunta": "¿Cuál es la forma más segura y recomendada de abrir un archivo en Python?",
+    "opciones": ["a) file = open('datos.txt')", "b) with open('datos.txt') as f:", "c) fopen('datos.txt', 'r')", "d) open('datos.txt').read()"],
+    "respuesta": "b) with open('datos.txt') as f:",
+    "explicacion": "El context manager 'with' asegura que el archivo se cierre automáticamente, incluso si hay errores."
+  },
+  {
+    "id": 29,
+    "tema": "PCEP",
+    "tipo": "practico",
+    "pregunta": "🔧 RETO RÁPIDO:\n\nEscribe un programa que le pida 5 números al usuario y muestre el promedio.",
+    "opciones": [],
+    "respuesta": "numeros = []\nfor i in range(5):\n    n = float(input(f'Ingresa número {i+1}: '))\n    numeros.append(n)\npromedio = sum(numeros) / len(numeros)\nprint(f'Promedio: {promedio}')",
+    "explicacion": "Acumulamos los números en una lista, luego sum() / len() da el promedio."
+  },
+  {
+    "id": 30,
+    "tema": "Excepciones",
+    "tipo": "opcion_multiple",
+    "pregunta": "¿Qué hace el bloque else en una estructura try/except?",
+    "opciones": ["a) Se ejecuta siempre", "b) Se ejecuta si NO hubo excepción", "c) Se ejecuta si hubo excepción", "d) No existe else en try/except"],
+    "respuesta": "b) Se ejecuta si NO hubo excepción",
+    "explicacion": "El else en try/except se ejecuta solo si no ocurrió ninguna excepción en el bloque try."
+  }
+]
