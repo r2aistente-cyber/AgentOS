@@ -73,7 +73,7 @@ export default function ChatView({ agent: initialAgent, onBack }: Props) {
     let cancelled = false
     ;(async () => {
       try {
-        const list = await listAgentSessions(agent.port)
+        const list = await listAgentSessions(agent.name, agent.port)
         if (cancelled) return
         setSessions(list)
         if (list.length > 0 && !sessionId) await loadSession(list[0].id)
@@ -81,7 +81,7 @@ export default function ChatView({ agent: initialAgent, onBack }: Props) {
         /* agente recién iniciado sin sesiones aún */
       }
       try {
-        const m = await getAgentModels(agent.port)
+        const m = await getAgentModels(agent.name, agent.port)
         if (cancelled) return
         setModels(m.models)
         setActiveModel((cur) => cur || m.default)
@@ -97,7 +97,7 @@ export default function ChatView({ agent: initialAgent, onBack }: Props) {
 
   const refreshSessions = async () => {
     try {
-      setSessions(await listAgentSessions(agent.port))
+      setSessions(await listAgentSessions(agent.name, agent.port))
     } catch {
       /* ignore */
     }
@@ -108,7 +108,7 @@ export default function ChatView({ agent: initialAgent, onBack }: Props) {
     setSessionId(sid)
     setContext(null)
     try {
-      const msgs = await getSessionMessages(agent.port, sid)
+      const msgs = await getSessionMessages(agent.name, agent.port, sid)
       setMessages(
         msgs
           .filter((m) => m.role === 'user' || m.role === 'assistant')
@@ -126,7 +126,7 @@ export default function ChatView({ agent: initialAgent, onBack }: Props) {
   // #12: nueva sesión de trabajo con el mismo agente.
   const newSession = async () => {
     try {
-      const s = await createAgentSession(agent.port)
+      const s = await createAgentSession(agent.name, agent.port)
       setSessionId(s.id)
       setMessages([])
       setContext(null)
@@ -163,7 +163,7 @@ export default function ChatView({ agent: initialAgent, onBack }: Props) {
     setError(null)
     try {
       for (const file of Array.from(list)) {
-        const res = await uploadToAgent(agent.port, file)
+        const res = await uploadToAgent(agent.name, agent.port, file)
         setAttachments((a) => (a.includes(res.filename) ? a : [...a, res.filename]))
       }
     } catch (e) {
@@ -193,7 +193,7 @@ export default function ChatView({ agent: initialAgent, onBack }: Props) {
     setSending(true)
     const wasNew = !sessionId
     try {
-      const res = await chatWithAgent(agent.port, payload, sessionId, activeModel || null)
+      const res = await chatWithAgent(agent.name, agent.port, payload, sessionId, activeModel || null)
       setSessionId(res.session_id)
       if (res.context_tokens != null && res.context_limit != null) {
         setContext({ tokens: res.context_tokens, limit: res.context_limit })

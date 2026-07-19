@@ -83,7 +83,7 @@ export interface SessionMessage {
   tokens?: number
 }
 
-// ---- Helpers ----
+// ---- Helpers del Hub ----
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -100,9 +100,55 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     }
     throw new Error(detail)
   }
-  // 204 / respuestas vacías
   const text = await res.text()
   return (text ? JSON.parse(text) : {}) as T
+}
+
+// ---- Cache de tokens por nombre de agente ----
+// null  = token verificado como ausente (agente sin auth)
+// undefined = no consultado aún
+const _tokenCache = new Map<string, string | null>()
+
+/** Obtiene el Bearer token del agente desde el Hub (con cache). */
+async function resolveToken(agentName: string): Promise<string | null> {
+  if (_tokenCache.has(agentName)) return _tokenCache.get(agentName)!
+  try {
+    const r = await req<{ token: string | null; auth_required: boolean }>(
+      `${HUB}/agents/${encodeURIComponent(agentName)}/token`,
+    )
+    const token = r.auth_required ? r.token : null
+    _tokenCache.set(agentName, token)
+    return token
+  } catch {
+    // Hub no responde o ruta no existe (versión antigua del Hub) → sin auth
+    _tokenCache.set(agentName, null)
+    return null
+  }
+}
+
+/** Invalida el token en cache (útil cuando se recrea un agente). */
+export function invalidateToken(agentName: string) {
+  _tokenCache.delete(agentName)
+}
+
+/**
+ * fetch() autenticado al agente. Añade Authorization si hay token disponible.
+ * Devuelve la respuesta cruda para que el caller haga el parsing que necesite.
+ */
+async function agentFetch(
+  agentName: string,
+  port: number,
+  path: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  const token = await resolveToken(agentName)
+  const headers: Record<string, string> = {
+    ...(init.headers as Record<string, string> | undefined),
+  }
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
+  const url = `http://localhost:${port}${path}`
+  return fetch(url, { ...init, headers })
 }
 
 // ---- Hub ----
@@ -110,7 +156,6 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 export const getHubInfo = () => req<HubInfo>(`${HUB}/info`)
 export const getHubHealth = () => req<Record<string, unknown>>(`${HUB}/health`)
 
-// Catálogo de modelos por proveedor para dropdowns en el wizard/config.
 export async function listProviderModels(): Promise<Record<string, string[] | null>> {
   return req<Record<string, string[] | null>>(`${HUB}/models`)
 }
@@ -165,16 +210,16 @@ export const updateAgentConfig = (name: string, config: AgentConfig) =>
     body: JSON.stringify({ config }),
   })
 
-// ---- Chat directo al agente ----
-// El proxy del Hub (/hub/proxy/{agent}/chat) es del Sprint 4; hoy hablamos
-// directo al puerto del agente. Requiere CORS abierto en el agente (dev).
+// ---- Chat directo al agente (autenticado) ----
+
 export async function chatWithAgent(
+  agentName: string,
   port: number,
   message: string,
   sessionId: string | null,
   model?: string | null,
 ): Promise<ChatResponse> {
-  const res = await fetch(`http://localhost:${port}/api/v1/chat`, {
+  const res = await agentFetch(agentName, port, '/api/v1/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message, session_id: sessionId, model: model || null }),
@@ -191,9 +236,10 @@ export interface ModelOption {
 }
 
 export async function getAgentModels(
+  agentName: string,
   port: number,
 ): Promise<{ models: ModelOption[]; default: string }> {
-  const res = await fetch(`http://localhost:${port}/api/v1/models`)
+  const res = await agentFetch(agentName, port, '/api/v1/models')
   if (!res.ok) throw new Error(`Models error: ${res.status}`)
   return res.json()
 }
@@ -203,18 +249,20 @@ export interface UploadResult {
   size: number
 }
 
-// ---- Sesiones del agente (directo al puerto) ----
+// ---- Sesiones del agente (directo al puerto, autenticado) ----
 
-const agentBase = (port: number) => `http://localhost:${port}/api/v1`
-
-export async function listAgentSessions(port: number): Promise<AgentSession[]> {
-  const res = await fetch(`${agentBase(port)}/sessions`)
+export async function listAgentSessions(agentName: string, port: number): Promise<AgentSession[]> {
+  const res = await agentFetch(agentName, port, '/api/v1/sessions')
   if (!res.ok) throw new Error(`Sessions error: ${res.status}`)
   return res.json()
 }
 
-export async function createAgentSession(port: number, title = 'Nueva sesión'): Promise<AgentSession> {
-  const res = await fetch(`${agentBase(port)}/sessions`, {
+export async function createAgentSession(
+  agentName: string,
+  port: number,
+  title = 'Nueva sesión',
+): Promise<AgentSession> {
+  const res = await agentFetch(agentName, port, '/api/v1/sessions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ title }),
@@ -223,22 +271,32 @@ export async function createAgentSession(port: number, title = 'Nueva sesión'):
   return res.json()
 }
 
-export async function getSessionMessages(port: number, sessionId: string): Promise<SessionMessage[]> {
-  const res = await fetch(`${agentBase(port)}/sessions/${sessionId}/messages`)
+export async function getSessionMessages(
+  agentName: string,
+  port: number,
+  sessionId: string,
+): Promise<SessionMessage[]> {
+  const res = await agentFetch(agentName, port, `/api/v1/sessions/${sessionId}/messages`)
   if (!res.ok) throw new Error(`History error: ${res.status}`)
   return res.json()
 }
 
-export async function deleteAgentSession(port: number, sessionId: string): Promise<void> {
-  await fetch(`${agentBase(port)}/sessions/${sessionId}`, { method: 'DELETE' })
+export async function deleteAgentSession(
+  agentName: string,
+  port: number,
+  sessionId: string,
+): Promise<void> {
+  await agentFetch(agentName, port, `/api/v1/sessions/${sessionId}`, { method: 'DELETE' })
 }
 
-// Sube un archivo (imagen o documento) a la carpeta del agente. El agente luego
-// puede leerlo con sus tools read_document / read_image.
-export async function uploadToAgent(port: number, file: File): Promise<UploadResult> {
+export async function uploadToAgent(
+  agentName: string,
+  port: number,
+  file: File,
+): Promise<UploadResult> {
   const form = new FormData()
   form.append('file', file)
-  const res = await fetch(`http://localhost:${port}/api/v1/upload`, {
+  const res = await agentFetch(agentName, port, '/api/v1/upload', {
     method: 'POST',
     body: form,
   })
@@ -246,7 +304,7 @@ export async function uploadToAgent(port: number, file: File): Promise<UploadRes
   return res.json()
 }
 
-// ---- Logs y stats del agente (vía Hub) ----
+// ---- Logs y stats del agente (vía Hub, sin token — rutas del Hub) ----
 
 export interface AgentLogs {
   lines: string[]
