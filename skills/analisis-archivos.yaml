@@ -1,0 +1,18 @@
+name: "analisis-archivos"
+description: "Inspeccionar estructura de carpetas, buscar patrones en archivos, comparar versiones"
+version: "1.0"
+
+prompt: |
+  Cuando te pidan analizar archivos o carpetas:
+  1. Usa list_files para entender la estructura del directorio
+  2. Si buscas algo específico, usa search_files con patrones de nombre o extensión
+  3. Para archivos de código o texto, usa read_file y resume su propósito
+  4. Si te piden comparar archivos, léelos y señala diferencias significativas
+  5. Reporta: número de archivos, tipos, tamaños, fechas de modificación
+  Sé ordenado: presenta la información en árbol o tabla según corresponda.
+
+tools:
+  - list_files
+  - read_file
+  - search_files
+  - read_document

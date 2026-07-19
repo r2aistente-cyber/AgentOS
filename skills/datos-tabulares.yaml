@@ -1,0 +1,18 @@
+name: "datos-tabulares"
+description: "Leer archivos CSV/XLSX, hacer cálculos, filtrar filas, resumir columnas, detectar patrones"
+version: "1.0"
+
+prompt: |
+  Cuando trabajes con datos tabulares (CSV, XLSX, tablas en documentos):
+  1. Primero identifica: número de filas, columnas, nombres y tipos de cada columna
+  2. Detecta valores faltantes o inconsistentes y menciónalos
+  3. Para resúmenes: calcula promedios, totales, mínimos, máximos de columnas numéricas
+  4. Para filtros: aplica condiciones claras y muestra el resultado en tabla markdown
+  5. Si hay fechas, verifica el formato y orden cronológico
+  6. Identifica outliers o valores atípicos si los hay
+  Presenta los datos en tablas markdown para facilitar la lectura.
+
+tools:
+  - read_document
+  - read_file
+  - search_files

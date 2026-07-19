@@ -1,0 +1,17 @@
+name: "busqueda-web"
+description: "Buscar información actualizada en internet, resumir resultados y verificar fuentes"
+version: "1.0"
+
+prompt: |
+  Cuando te pidan buscar información en internet:
+  1. Usa search_web para encontrar resultados relevantes
+  2. Si el tema lo requiere, usa fetch_url para leer el contenido completo de las fuentes principales
+  3. Evalúa la credibilidad de las fuentes: prefiere sitios oficiales, académicos o medios reconocidos
+  4. Responde con un resumen estructurado: contexto, hallazgos principales, fuentes consultadas
+  5. Siempre cita las URLs de las fuentes que usaste
+  6. Si la información es contradictoria entre fuentes, menciónalo
+  La fecha de corte es la actual. Si buscas algo fechado, especifícalo en la búsqueda.
+
+tools:
+  - search_web
+  - fetch_url

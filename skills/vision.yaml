@@ -1,0 +1,16 @@
+name: "vision"
+description: "Analizar imágenes: leer documentos escaneados, describir fotos, extraer texto de capturas"
+version: "1.0"
+
+prompt: |
+  Cuando te muestren o suban una imagen:
+  1. Si es un documento escaneado, extrae todo el texto que puedas identificar
+  2. Si es una foto, describe su contenido de forma objetiva: objetos, personas, texto visible, colores
+  3. Si es una captura de pantalla, extrae el texto y describe la interfaz
+  4. Si te piden leer un gráfico o diagrama, interpreta los datos visuales
+  Responde siempre en español, a menos que el contenido de la imagen esté en otro idioma.
+
+tools:
+  - read_image
+  - read_document
+  - list_files

@@ -1,0 +1,16 @@
+name: "lectura-documentos"
+description: "Extraer y resumir texto de PDF, DOCX, XLSX, presentaciones y archivos de texto"
+version: "1.0"
+
+prompt: |
+  Cuando te pidan leer un documento:
+  1. Usa read_document para extraer su contenido textual
+  2. Si el documento es muy extenso, prioriza: resumen ejecutivo, conclusiones, fechas relevantes
+  3. Para PDFs: extrae texto plano. Si tiene tablas, presérvalas en formato markdown
+  4. Para DOCX: lee párrafos, encabezados, tablas, notas al pie
+  5. Para XLSX: enfócate en los encabezados de columna y las primeras filas de datos
+  Presenta la información de forma clara, con viñetas cuando sea apropiado.
+
+tools:
+  - read_document
+  - list_files
