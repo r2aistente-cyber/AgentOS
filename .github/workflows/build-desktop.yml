@@ -1,0 +1,83 @@
+name: Build Desktop (Windows)
+
+# Dispara en:
+#   - Tags v* → genera un Release de GitHub con el instalador adjunto
+#   - workflow_dispatch → build manual desde la UI de GitHub (sin release)
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      upload_artifact:
+        description: 'Subir como artefacto (sin crear Release)'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write   # necesario para crear GitHub Releases
+
+jobs:
+  build-windows:
+    name: Windows installer (.msi / .exe)
+    runs-on: windows-latest
+
+    steps:
+      # ── Repo ──────────────────────────────────────────────────────────────
+      - uses: actions/checkout@v4
+
+      # ── Rust ──────────────────────────────────────────────────────────────
+      - name: Instalar Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      # Cache de Rust para acelerar builds posteriores
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      # ── Node.js ────────────────────────────────────────────────────────────
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: desktop/package-lock.json
+
+      # ── Dependencias del frontend del desktop ─────────────────────────────
+      - name: Instalar dependencias npm (desktop)
+        working-directory: desktop
+        run: npm ci
+
+      # ── Build Tauri ────────────────────────────────────────────────────────
+      - name: Build Tauri (Windows)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: desktop
+          # Si el trigger es un tag → crea Release automáticamente
+          # Si es workflow_dispatch → solo sube artefactos
+          tagName: ${{ github.ref_name }}
+          releaseName: 'R2 Hub ${{ github.ref_name }}'
+          releaseBody: |
+            ## R2 Hub / AgentOS — ${{ github.ref_name }}
+
+            ### Instalación
+            1. Descarga `R2.Autonomous_*_x64_en-US.msi` (instalador) o `R2.Autonomous_*_x64-setup.exe` (NSIS)
+            2. Ejecuta el instalador
+            3. Abre **R2 Hub** desde el escritorio o menú de inicio
+
+            ### Requisitos
+            - Windows 10/11 x64
+            - Python 3.11+ en el PATH (para el backend del Hub)
+            - Node.js 18+ (opcional, para WhatsApp sidecar)
+
+            ### Notas
+            - El instalador no incluye Python ni Node — instálalos por separado si no los tienes
+            - En el primer inicio, el Hub crea `~/AgentOS/` con el agente R2-PRIME
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: false
