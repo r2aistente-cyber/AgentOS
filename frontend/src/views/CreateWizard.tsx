@@ -11,6 +11,39 @@ const STEPS = ['Identidad', 'Personalidad', 'LLM', 'Tools y canales', 'Resumen']
 
 const PROVIDERS = ['ollama', 'openai', 'anthropic', 'opencode', 'opencode-go', 'custom', 'mock']
 
+// Catálogo estático para proveedores que no exponen /models dinámicamente.
+// Se funde con el catálogo del Hub; el dinámico (Ollama) prevalece.
+const STATIC_CATALOG: Record<string, string[]> = {
+  'opencode': [
+    'claude-opus-4-8',
+    'claude-sonnet-4-6',
+    'claude-haiku-4-5',
+    'gpt-4o',
+    'gpt-4o-mini',
+    'gpt-4.1',
+  ],
+  'opencode-go': [
+    'deepseek-v4-pro',
+    'deepseek-v4-flash',
+    'kimi-k2.6',
+    'glm-5.2',
+    'qwen3-235b',
+  ],
+  'anthropic': [
+    'claude-opus-4-8',
+    'claude-sonnet-4-6',
+    'claude-haiku-4-5',
+  ],
+  'openai': [
+    'gpt-4o',
+    'gpt-4o-mini',
+    'gpt-4.1',
+    'gpt-4.1-mini',
+    'o3',
+    'o4-mini',
+  ],
+}
+
 const ALL_TOOLS = [
   'read_file',
   'write_file',
@@ -101,9 +134,12 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [modelCatalog, setModelCatalog] = useState<Record<string, string[] | null>>({})
 
-  // Carga el catálogo de modelos al montar el wizard
+  // Carga el catálogo de modelos al montar el wizard; el estático sirve de base.
   useEffect(() => {
-    listProviderModels().then(setModelCatalog).catch(() => {})
+    setModelCatalog(STATIC_CATALOG)
+    listProviderModels()
+      .then((dynamic) => setModelCatalog((prev) => ({ ...STATIC_CATALOG, ...dynamic })))
+      .catch(() => {})
   }, [])
 
   // Modelos disponibles para el proveedor actual (o null si es campo libre)
@@ -395,7 +431,7 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
                     value={em.provider}
                     onChange={(e) => {
                       const next = [...f.extra_models]
-                      next[i] = { ...next[i], provider: e.target.value }
+                      next[i] = { ...next[i], provider: e.target.value, model: '' }
                       set('extra_models', next)
                     }}
                     className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-100"
@@ -404,17 +440,33 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
                       <option key={p} value={p}>{p}</option>
                     ))}
                   </select>
-                  <input
-                    list={em.provider === 'opencode-go' ? 'opencode-go-models' : undefined}
-                    value={em.model}
-                    onChange={(e) => {
-                      const next = [...f.extra_models]
-                      next[i] = { ...next[i], model: e.target.value }
-                      set('extra_models', next)
-                    }}
-                    placeholder="id del modelo"
-                    className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-indigo-500"
-                  />
+                  {modelCatalog[em.provider] ? (
+                    <select
+                      value={em.model}
+                      onChange={(e) => {
+                        const next = [...f.extra_models]
+                        next[i] = { ...next[i], model: e.target.value }
+                        set('extra_models', next)
+                      }}
+                      className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-100"
+                    >
+                      <option value="">— elige modelo —</option>
+                      {modelCatalog[em.provider]!.map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      value={em.model}
+                      onChange={(e) => {
+                        const next = [...f.extra_models]
+                        next[i] = { ...next[i], model: e.target.value }
+                        set('extra_models', next)
+                      }}
+                      placeholder="id del modelo"
+                      className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-indigo-500"
+                    />
+                  )}
                   <button
                     type="button"
                     onClick={() => set('extra_models', f.extra_models.filter((_, j) => j !== i))}
