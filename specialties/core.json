@@ -22,11 +22,5 @@
   "sandbox": {
     "paths": ["~/Trantor/", "~/Documents/", "~/r2-autonomous/", "/tmp/"]
   },
-  "knowledge_files": [
-    "MEMORY.md",
-    "knowledge_chunks.md",
-    "IDENTITY.md",
-    "USER.md",
-    "PROTOCOLOS/"
-  ]
+  "knowledge_files": []
 }
