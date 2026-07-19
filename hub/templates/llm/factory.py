@@ -60,6 +60,9 @@ def build_adapter(model_ref: str | None = None) -> LLMAdapter:
     if provider in ("openai", "opencode", "opencode-go", "custom"):
         from llm.openai_compat import OpenAICompatAdapter
         return OpenAICompatAdapter(provider, model=model, api_key=api_key)
+    if provider == "claude-cli":
+        from llm.claude_cli import ClaudeCliAdapter
+        return ClaudeCliAdapter(model=model)
     if provider == "mock":
         from llm.mock import MockAdapter
         return MockAdapter()

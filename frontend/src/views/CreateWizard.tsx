@@ -9,7 +9,7 @@ interface Props {
 
 const STEPS = ['Identidad', 'Personalidad', 'LLM', 'Tools y canales', 'Resumen']
 
-const PROVIDERS = ['ollama', 'openai', 'anthropic', 'opencode', 'opencode-go', 'custom', 'mock']
+const PROVIDERS = ['ollama', 'openai', 'anthropic', 'opencode', 'opencode-go', 'claude-cli', 'custom', 'mock']
 
 // num_ctx sugerido por proveedor/modelo. El usuario puede sobreescribir.
 const NUM_CTX_DEFAULTS: Record<string, number> = {
@@ -36,7 +36,13 @@ const NUM_CTX_DEFAULTS: Record<string, number> = {
   'opencode/gpt-5.4':             128000,
   'opencode/gpt-5.4-mini':        128000,
   'opencode/gpt-5':               128000,
-  // anthropic
+  // claude-cli (OAuth)
+  'claude-cli/claude-fable-5':    200000,
+  'claude-cli/claude-opus-4-8':   200000,
+  'claude-cli/claude-sonnet-5':   200000,
+  'claude-cli/claude-sonnet-4-6': 200000,
+  'claude-cli/claude-haiku-4-5':  200000,
+  // anthropic (API key de pago)
   'anthropic/claude-opus-4-8':    200000,
   'anthropic/claude-sonnet-4-6':  200000,
   'anthropic/claude-haiku-4-5':   200000,
@@ -51,7 +57,7 @@ const NUM_CTX_DEFAULTS: Record<string, number> = {
 function suggestNumCtx(provider: string, model: string): number {
   return (
     NUM_CTX_DEFAULTS[`${provider}/${model}`] ??
-    ({'anthropic': 200000, 'openai': 128000, 'opencode': 128000, 'opencode-go': 64000}[provider]) ??
+    ({'anthropic': 200000, 'claude-cli': 200000, 'openai': 128000, 'opencode': 128000, 'opencode-go': 64000}[provider]) ??
     8192
   )
 }
@@ -111,7 +117,15 @@ const STATIC_CATALOG: Record<string, string[]> = {
     'grok-4.5',
     'hy3-preview',
   ],
-  // anthropic = api.anthropic.com directo
+  // claude-cli = OAuth de Claude Code (suscripcion Pro, sin API key)
+  'claude-cli': [
+    'claude-fable-5',
+    'claude-opus-4-8',
+    'claude-sonnet-5',
+    'claude-sonnet-4-6',
+    'claude-haiku-4-5',
+  ],
+  // anthropic = api.anthropic.com directo con API key de pago
   'anthropic': [
     'claude-opus-4-8',
     'claude-sonnet-4-6',
@@ -249,6 +263,7 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
     }))
 
   const nameValid = /^[a-zA-Z0-9_-]{2,40}$/.test(f.name)
+  // claude-cli usa OAuth local — no pide API key
   const needsKey = ['openai', 'anthropic', 'opencode', 'opencode-go'].includes(f.provider)
 
   const canNext = () => {
