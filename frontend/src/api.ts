@@ -109,7 +109,10 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 // undefined = no consultado aún
 const _tokenCache = new Map<string, string | null>()
 
-/** Obtiene el Bearer token del agente desde el Hub (con cache). */
+/** Obtiene el Bearer token del agente desde el Hub (con cache).
+ *  Solo cachea respuestas exitosas; errores de red no se cachean
+ *  para que el próximo intento reintente al Hub.
+ */
 async function resolveToken(agentName: string): Promise<string | null> {
   if (_tokenCache.has(agentName)) return _tokenCache.get(agentName)!
   try {
@@ -120,8 +123,7 @@ async function resolveToken(agentName: string): Promise<string | null> {
     _tokenCache.set(agentName, token)
     return token
   } catch {
-    // Hub no responde o ruta no existe (versión antigua del Hub) → sin auth
-    _tokenCache.set(agentName, null)
+    // Hub no responde o endpoint ausente: NO cachear — reintentar en próximo mensaje.
     return null
   }
 }
