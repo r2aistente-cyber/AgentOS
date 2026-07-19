@@ -37,43 +37,47 @@ _DSML_PARAM = re.compile(
 )
 
 
+def _has_dsml(content: str) -> bool:
+    return f'<{_SEP}DSML{_SEP}' in content
+
+
 def _parse_dsml(content: str) -> tuple[str, list[ToolCall]]:
     """Extrae tool calls del formato DSML de DeepSeek embebido en content.
 
-    Retorna (content_limpio, tool_calls). Si no hay DSML, retorna el content
-    original con lista vacía.
+    Retorna (content_limpio, tool_calls). Maneja bloques completos e incompletos.
     """
-    block_match = _DSML_BLOCK.search(content)
-    if not block_match:
+    if not _has_dsml(content):
         return content, []
 
     tool_calls: list[ToolCall] = []
-    block_text = block_match.group(1)
+    block_match = _DSML_BLOCK.search(content)
 
-    for invoke in _DSML_INVOKE.finditer(block_text):
-        fn_name = invoke.group(1)
-        params_text = invoke.group(2)
-        arguments: dict = {}
-
-        for param in _DSML_PARAM.finditer(params_text):
-            p_name = param.group(1)
-            p_is_string = param.group(2).lower() == "true"
-            p_value = param.group(3).strip()
-            if p_is_string:
-                arguments[p_name] = p_value
-            else:
-                try:
-                    arguments[p_name] = json.loads(p_value)
-                except (json.JSONDecodeError, ValueError):
+    if block_match:
+        block_text = block_match.group(1)
+        for invoke in _DSML_INVOKE.finditer(block_text):
+            fn_name = invoke.group(1)
+            params_text = invoke.group(2)
+            arguments: dict = {}
+            for param in _DSML_PARAM.finditer(params_text):
+                p_name = param.group(1)
+                p_is_string = param.group(2).lower() == "true"
+                p_value = param.group(3).strip()
+                if p_is_string:
                     arguments[p_name] = p_value
+                else:
+                    try:
+                        arguments[p_name] = json.loads(p_value)
+                    except (json.JSONDecodeError, ValueError):
+                        arguments[p_name] = p_value
+            tool_calls.append(ToolCall(
+                id=f"dsml-{uuid.uuid4().hex[:8]}",
+                name=fn_name,
+                arguments=arguments,
+            ))
 
-        tool_calls.append(ToolCall(
-            id=f"dsml-{uuid.uuid4().hex[:8]}",
-            name=fn_name,
-            arguments=arguments,
-        ))
-
-    clean = _DSML_BLOCK.sub("", content).strip()
+    # Siempre limpiar: bloques completos primero, luego residuos/truncados
+    clean = _DSML_BLOCK.sub("", content)
+    clean = re.sub(rf'<{_SEP}DSML{_SEP}.*', '', clean, flags=re.DOTALL).strip()
     return clean, tool_calls
 
 

@@ -14,8 +14,8 @@ const PROVIDERS = ['ollama', 'openai', 'anthropic', 'opencode', 'opencode-go', '
 // num_ctx sugerido por proveedor/modelo. El usuario puede sobreescribir.
 const NUM_CTX_DEFAULTS: Record<string, number> = {
   // opencode-go
-  'opencode-go/deepseek-v4-pro':  100000,
-  'opencode-go/deepseek-v4-flash': 64000,
+  'opencode-go/deepseek-v4-pro':  1000000,
+  'opencode-go/deepseek-v4-flash': 1000000,
   'opencode-go/kimi-k3':          128000,
   'opencode-go/kimi-k2.7-code':   128000,
   'opencode-go/kimi-k2.6':        128000,
@@ -25,8 +25,8 @@ const NUM_CTX_DEFAULTS: Record<string, number> = {
   'opencode-go/qwen3.6-plus':      32000,
   'opencode-go/qwen3.5-plus':      32000,
   // opencode
-  'opencode/deepseek-v4-pro':     100000,
-  'opencode/deepseek-v4-flash':    64000,
+  'opencode/deepseek-v4-pro':     1000000,
+  'opencode/deepseek-v4-flash':   1000000,
   'opencode/claude-fable-5':      200000,
   'opencode/claude-opus-4-8':     200000,
   'opencode/claude-sonnet-5':     200000,

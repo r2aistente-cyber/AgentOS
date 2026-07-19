@@ -74,6 +74,12 @@ async def process_message(message: str, session_id: str | None, user_id: str = "
 
     # Si el loop agotó los rounds con tool calls pendientes, pedir respuesta final
     if response and response.has_tool_calls:
+        messages.append({"role": "user", "content": "Resume en texto todo lo que encontraste y concluye tu respuesta."})
+        response = await adapter.chat(messages, tools=None, system=system)
+
+    # Si la respuesta sigue vacía (modelo devolvió solo DSML que fue stripeado), forzar resumen
+    if response and not response.content and not response.has_tool_calls:
+        messages.append({"role": "user", "content": "Tu respuesta anterior estaba vacía. Responde ahora en texto plano con lo que encontraste."})
         response = await adapter.chat(messages, tools=None, system=system)
 
     final = response.content if response else ""
