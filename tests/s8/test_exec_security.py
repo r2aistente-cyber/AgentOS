@@ -131,7 +131,8 @@ def test_safe_commands_not_blocked(cmd: str):
 # -- Límite de longitud --------------------------------------------------------
 
 def test_command_too_long_blocked():
-    long_cmd = "echo " + "A" * 600
+    # _MAX_CMD_LEN en exec_tools.py es 2048; usamos 2100 para garantizar el bloqueo
+    long_cmd = "echo " + "A" * 2100
     result = _classify(long_cmd)
     assert result is not None
     assert "largo" in result
