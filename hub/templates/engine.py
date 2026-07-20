@@ -36,6 +36,8 @@ async def process_message(message: str, session_id: str | None, user_id: str = "
     rag_context = rag_retriever.retrieve(message)
     system = f"{base_prompt}\n\n{rag_context}" if rag_context else base_prompt
     history = await session_store.get_history(session_id)
+    # Limitar historial a los últimos 20 mensajes para no saturar el LLM
+    history = history[-20:]
     await session_store.add_message(session_id, "user", message)
     history.append({"role": "user", "content": message})
 
