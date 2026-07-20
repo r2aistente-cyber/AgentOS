@@ -47,42 +47,49 @@ async def process_message(message: str, session_id: str | None, user_id: str = "
     tools_used: list[str] = []
     messages = list(history)
     response = None
+    error_msg: str | None = None
 
-    for _ in range(MAX_TOOL_ROUNDS):
-        response = await adapter.chat(messages, tools=tools or None, system=system)
-        if not response.has_tool_calls:
-            break
+    try:
+        for _ in range(MAX_TOOL_ROUNDS):
+            response = await adapter.chat(messages, tools=tools or None, system=system)
+            if not response.has_tool_calls:
+                break
 
-        messages.append({
-            "role": "assistant",
-            "content": response.content or "",
-            "tool_calls": [
-                {"id": tc.id, "type": "function",
-                 "function": {"name": tc.name, "arguments": json.dumps(tc.arguments)}}
-                for tc in response.tool_calls
-            ],
-        })
-        for tc in response.tool_calls:
-            tools_used.append(tc.name)
-            result = await orchestrator.execute(tc)
             messages.append({
-                "role": "tool",
-                "tool_call_id": tc.id,
-                "name": tc.name,
-                "content": json.dumps(result, ensure_ascii=False),
+                "role": "assistant",
+                "content": response.content or "",
+                "tool_calls": [
+                    {"id": tc.id, "type": "function",
+                     "function": {"name": tc.name, "arguments": json.dumps(tc.arguments)}}
+                    for tc in response.tool_calls
+                ],
             })
+            for tc in response.tool_calls:
+                tools_used.append(tc.name)
+                result = await orchestrator.execute(tc)
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "name": tc.name,
+                    "content": json.dumps(result, ensure_ascii=False),
+                })
 
-    # Si el loop agotó los rounds con tool calls pendientes, pedir respuesta final
-    if response and response.has_tool_calls:
-        messages.append({"role": "user", "content": "Resume en texto todo lo que encontraste y concluye tu respuesta."})
-        response = await adapter.chat(messages, tools=None, system=system)
+        # Si el loop agotó los rounds con tool calls pendientes, pedir respuesta final
+        if response and response.has_tool_calls:
+            messages.append({"role": "user", "content": "Resume en texto todo lo que encontraste y concluye tu respuesta."})
+            response = await adapter.chat(messages, tools=None, system=system)
 
-    # Si la respuesta sigue vacía (modelo devolvió solo DSML que fue stripeado), forzar resumen
-    if response and not response.content and not response.has_tool_calls:
-        messages.append({"role": "user", "content": "Tu respuesta anterior estaba vacía. Responde ahora en texto plano con lo que encontraste."})
-        response = await adapter.chat(messages, tools=None, system=system)
+        # Si la respuesta sigue vacía (modelo devolvió solo DSML que fue stripeado), forzar resumen
+        if response and not response.content and not response.has_tool_calls:
+            messages.append({"role": "user", "content": "Tu respuesta anterior estaba vacía. Responde ahora en texto plano con lo que encontraste."})
+            response = await adapter.chat(messages, tools=None, system=system)
 
-    final = response.content if response else ""
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).error("LLM error: %s", exc, exc_info=True)
+        error_msg = f"⚠️ Error del proveedor LLM: {type(exc).__name__}: {exc}"
+
+    final = error_msg or (response.content if response else "")
     await session_store.add_message(session_id, "assistant", final, tools_used,
                                     response.output_tokens if response else 0)
     llm_cfg = config.get("llm", {}) or {}
