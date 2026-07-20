@@ -14,7 +14,7 @@ from rag import retriever as rag_retriever
 from tools import registry
 from tools.orchestrator import ToolOrchestrator
 
-MAX_TOOL_ROUNDS = 10
+MAX_TOOL_ROUNDS = 5
 
 _rag_ready = False
 

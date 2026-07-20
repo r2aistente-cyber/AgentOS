@@ -122,7 +122,7 @@ class OpenAICompatAdapter(LLMAdapter):
         if tools:
             payload["tools"] = tools
 
-        async with httpx.AsyncClient(timeout=300) as client:
+        async with httpx.AsyncClient(timeout=120) as client:
             r = await client.post(f"{self._base}/chat/completions",
                                   headers=self._headers(), json=payload)
             if r.status_code == 400 and self._temperature != 1:
