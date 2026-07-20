@@ -122,7 +122,7 @@ class OpenAICompatAdapter(LLMAdapter):
         if tools:
             payload["tools"] = tools
 
-        async with httpx.AsyncClient(timeout=120) as client:
+        async with httpx.AsyncClient(timeout=300) as client:
             r = await client.post(f"{self._base}/chat/completions",
                                   headers=self._headers(), json=payload)
             if r.status_code == 400 and self._temperature != 1:
@@ -171,12 +171,13 @@ class OpenAICompatAdapter(LLMAdapter):
                 r2 = await client.post(f"{self._base}/chat/completions",
                                        headers=self._headers(), json=cont_payload)
                 if r2.status_code == 200:
-                    cont_choice = r2.json()["choices"][0]
-                    cont_content = cont_choice["message"].get("content") or ""
+                    cont_data = r2.json()
+                    cont_content = cont_data["choices"][0]["message"].get("content") or ""
                     content = content + cont_content
-                    usage2 = r2.json().get("usage", {})
+                    usage2 = cont_data.get("usage", {})
+                    data.setdefault("usage", {})
                     data["usage"]["completion_tokens"] = (
-                        data.get("usage", {}).get("completion_tokens", 0)
+                        data["usage"].get("completion_tokens", 0)
                         + usage2.get("completion_tokens", 0)
                     )
 

@@ -3,16 +3,20 @@ Usa RAG para inyectar solo los chunks de knowledge relevantes al mensaje.
 """
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 
 import agent_config as config
-from llm.factory import build_adapter
+from llm.factory import build_adapter_with_fallback as build_adapter
 from llm.prompts import build_system_prompt
 from memory import session as session_store
 from rag import indexer as rag_indexer
 from rag import retriever as rag_retriever
 from tools import registry
-from tools.orchestrator import ToolOrchestrator
+from tools.orchestrator import ToolOrchestrator, is_confirmation_message, mark_confirmed
+
+log = logging.getLogger(__name__)
 
 MAX_TOOL_ROUNDS = 5
 
@@ -31,17 +35,29 @@ async def process_message(message: str, session_id: str | None, user_id: str = "
     if not session_id:
         session_id = await session_store.create_session(user_id)
 
+    # Si el mensaje es una confirmación, activar el token y no mandar al LLM
+    if is_confirmation_message(message):
+        # Marcar todas las tools pendientes de confirmación como aprobadas
+        for tool_name in ("exec_command", "write_file", "run_python"):
+            mark_confirmed(session_id, tool_name)
+        await session_store.add_message(session_id, "user", message)
+        # Recuperar último mensaje del asistente para re-ejecutar
+        history = await session_store.get_history(session_id)
+        history = history[-20:]
+        # Continuar el flujo normalmente — el LLM reintentará la tool call con el token activo
+    else:
+        history = await session_store.get_history(session_id)
+        history = history[-20:]
+        await session_store.add_message(session_id, "user", message)
+
     base_prompt = build_system_prompt()
     try:
-        _ensure_rag_indexed()
-        rag_context = rag_retriever.retrieve(message)
+        # retrieve() es sync y puede tardar — corre en thread para no bloquear el event loop
+        rag_context = await asyncio.to_thread(rag_retriever.retrieve, message)
     except Exception:
         rag_context = ""
     system = f"{base_prompt}\n\n{rag_context}" if rag_context else base_prompt
-    history = await session_store.get_history(session_id)
-    # Limitar historial a los últimos 20 mensajes para no saturar el LLM
-    history = history[-20:]
-    await session_store.add_message(session_id, "user", message)
+
     history.append({"role": "user", "content": message})
 
     tools_cfg = config.get("tools", {}) or {}
@@ -84,14 +100,13 @@ async def process_message(message: str, session_id: str | None, user_id: str = "
             messages.append({"role": "user", "content": "Resume en texto todo lo que encontraste y concluye tu respuesta."})
             response = await adapter.chat(messages, tools=None, system=system)
 
-        # Si la respuesta sigue vacía (modelo devolvió solo DSML que fue stripeado), forzar resumen
+        # Si la respuesta está vacía, forzar resumen
         if response and not response.content and not response.has_tool_calls:
-            messages.append({"role": "user", "content": "Tu respuesta anterior estaba vacía. Responde ahora en texto plano con lo que encontraste."})
+            messages.append({"role": "user", "content": "Tu respuesta anterior estaba vacía. Responde en texto plano con lo que encontraste."})
             response = await adapter.chat(messages, tools=None, system=system)
 
     except Exception as exc:
-        import logging
-        logging.getLogger(__name__).error("LLM error: %s", exc, exc_info=True)
+        log.error("LLM error: %s", exc, exc_info=True)
         error_msg = f"⚠️ Error del proveedor LLM: {type(exc).__name__}: {exc}"
 
     final = error_msg or (response.content if response else "")

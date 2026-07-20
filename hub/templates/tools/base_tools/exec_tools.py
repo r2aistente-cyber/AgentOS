@@ -127,6 +127,10 @@ async def exec_command(command: str, timeout: int = 120) -> str:
         output = stdout.decode("utf-8", errors="replace").strip()
         return output[:4000] if output else f"(sin salida, código {proc.returncode})"
     except asyncio.TimeoutError:
+        try:
+            proc.kill()
+        except Exception:
+            pass
         return f"[TIMEOUT] El comando tardó más de {timeout}s y fue cancelado."
     except Exception as e:
         return f"[ERROR] {e}"

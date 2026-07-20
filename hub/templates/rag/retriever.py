@@ -1,16 +1,34 @@
-"""Recupera los chunks de knowledge más relevantes para una query.
-
-Usa ChromaDB + sentence-transformers para búsqueda semántica.
-Si el índice no existe o está vacío, retorna string vacío (sin romper el flujo).
-"""
+"""Recupera los chunks de knowledge más relevantes para una query."""
 from __future__ import annotations
 
 from pathlib import Path
 
 import agent_config as config
 
-TOP_K = 5           # fragmentos a recuperar por query
-MAX_CHARS = 6000    # tope de chars totales inyectados en el prompt
+TOP_K = 5
+MAX_CHARS = 6000
+
+# Cache del modelo — mismo patrón que indexer.py para no recargar 90MB en cada mensaje
+_model = None
+_client = None
+_collection = None
+
+
+def _get_model():
+    global _model
+    if _model is None:
+        from sentence_transformers import SentenceTransformer
+        _model = SentenceTransformer("all-MiniLM-L6-v2")
+    return _model
+
+
+def _get_collection(index_dir: Path):
+    global _client, _collection
+    if _collection is None:
+        import chromadb
+        _client = chromadb.PersistentClient(path=str(index_dir))
+        _collection = _client.get_collection("knowledge")
+    return _collection
 
 
 def _get_index_dir() -> Path:
@@ -19,22 +37,17 @@ def _get_index_dir() -> Path:
 
 
 def retrieve(query: str) -> str:
-    """Retorna un bloque Markdown con los chunks relevantes, listo para inyectar en el prompt."""
     index_dir = _get_index_dir()
     if not index_dir.exists():
         return ""
 
     try:
-        import chromadb
-        from sentence_transformers import SentenceTransformer
-
-        client = chromadb.PersistentClient(path=str(index_dir))
-        collection = client.get_collection("knowledge")
+        collection = _get_collection(index_dir)
 
         if collection.count() == 0:
             return ""
 
-        model = SentenceTransformer("all-MiniLM-L6-v2")
+        model = _get_model()
         embedding = model.encode([query], show_progress_bar=False).tolist()[0]
 
         results = collection.query(
@@ -50,22 +63,21 @@ def retrieve(query: str) -> str:
         if not docs:
             return ""
 
-        parts = ["## 📚 Knowledge relevante\n"]
+        parts = ["## Knowledge relevante\n"]
         total_chars = 0
 
         for doc, meta, dist in zip(docs, metas, distances):
             if total_chars >= MAX_CHARS:
                 break
-            # dist es distancia coseno [0,2]; similaridad = 1 - dist/2
             similarity = round(1 - dist / 2, 2)
-            if similarity < 0.15:  # descartar chunks irrelevantes
+            if similarity < 0.15:
                 continue
             source = Path(meta.get("source", "")).name
             snippet = doc[:MAX_CHARS - total_chars].strip()
-            parts.append(f"**[{source}]** *(relevancia: {similarity})*\n```\n{snippet}\n```\n")
+            parts.append(f"**[{source}]** (relevancia: {similarity})\n```\n{snippet}\n```\n")
             total_chars += len(snippet)
 
-        if len(parts) == 1:  # solo el header, sin contenido útil
+        if len(parts) == 1:
             return ""
 
         return "\n".join(parts)

@@ -7,12 +7,18 @@ from tools.registry import ToolDef, register
 
 
 async def search_web(query: str, max_results: int = 5) -> str:
+    import asyncio
     try:
         from duckduckgo_search import DDGS
-        results = []
-        with DDGS() as ddgs:
-            for r in ddgs.text(query, max_results=max_results):
-                results.append(f"**{r['title']}**\n{r['href']}\n{r['body']}")
+
+        def _sync_search():
+            results = []
+            with DDGS() as ddgs:
+                for r in ddgs.text(query, max_results=max_results):
+                    results.append(f"**{r['title']}**\n{r['href']}\n{r['body']}")
+            return results
+
+        results = await asyncio.to_thread(_sync_search)
         return "\n\n---\n\n".join(results) if results else "Sin resultados."
     except Exception as e:  # noqa: BLE001
         return f"Error en búsqueda: {e}"

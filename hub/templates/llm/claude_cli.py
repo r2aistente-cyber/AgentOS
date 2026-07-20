@@ -88,6 +88,7 @@ class ClaudeCliAdapter(LLMAdapter):
             return False
 
     async def chat(self, messages, tools=None, system=None) -> LLMResponse:
+        import asyncio
         from llm.anthropic import _to_anthropic_messages, _to_anthropic_tools
 
         payload: dict = {
@@ -101,8 +102,14 @@ class ClaudeCliAdapter(LLMAdapter):
         if tools:
             payload["tools"] = _to_anthropic_tools(tools)
 
+        _RETRY_WAITS = [5, 15, 30]  # segundos de espera entre reintentos para 429
         async with httpx.AsyncClient(timeout=120) as client:
-            r = await client.post(_API_URL, headers=self._headers(), json=payload)
+            for attempt in range(4):  # 1 intento inicial + 3 reintentos
+                r = await client.post(_API_URL, headers=self._headers(), json=payload)
+                if r.status_code != 429 or attempt == 3:
+                    break
+                wait = max(int(r.headers.get("retry-after", 0)), _RETRY_WAITS[attempt])
+                await asyncio.sleep(wait)
             r.raise_for_status()
             data = r.json()
 

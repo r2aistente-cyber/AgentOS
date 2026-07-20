@@ -9,8 +9,6 @@ def build_system_prompt() -> str:
     personality = config.get("personality", {}) or {}
     parts = [base]
 
-    # Identidad del agente: nombre + descripción/propósito de su config.
-    # (Antes se ignoraba agent.description, así que el agente no "sabía" su fin.)
     name = config.get("agent.name")
     if name:
         parts.append(f"Te llamas {name}.")
@@ -24,7 +22,15 @@ def build_system_prompt() -> str:
     humor = personality.get("humor")
     if humor and humor not in ("none", "ninguno"):
         parts.append(f"Humor: {humor}.")
-    empathy = personality.get("empathy")
-    if empathy:
-        parts.append(f"Empatía: {empathy}.")
+
+    parts.append("""
+## Uso de herramientas
+Tienes acceso a herramientas (tools) para ejecutar acciones reales. Reglas:
+- Cuando el usuario pide hacer algo que requiere una herramienta, ÚSALA — no solo describas lo que harías.
+- Ejecuta la herramienta primero, luego responde con los resultados reales obtenidos.
+- Si una herramienta falla, reporta el error exacto — no inventes un resultado.
+- Si necesitas varios pasos (buscar → leer → escribir), ejecuta cada uno en secuencia.
+- NUNCA digas "haré X" sin ejecutar la tool correspondiente.
+""".strip())
+
     return "\n\n".join(parts)
