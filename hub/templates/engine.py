@@ -31,9 +31,12 @@ async def process_message(message: str, session_id: str | None, user_id: str = "
     if not session_id:
         session_id = await session_store.create_session(user_id)
 
-    _ensure_rag_indexed()
     base_prompt = build_system_prompt()
-    rag_context = rag_retriever.retrieve(message)
+    try:
+        _ensure_rag_indexed()
+        rag_context = rag_retriever.retrieve(message)
+    except Exception:
+        rag_context = ""
     system = f"{base_prompt}\n\n{rag_context}" if rag_context else base_prompt
     history = await session_store.get_history(session_id)
     # Limitar historial a los últimos 20 mensajes para no saturar el LLM
