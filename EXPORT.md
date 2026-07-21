@@ -55,8 +55,10 @@ Un **snapshot completo del agente** — su personalidad, su conocimiento Y todo 
  ├── audit/                    ← 📋 HISTORIAL DE ACCIONES
  │   └── audit.log             ← Todo lo que ha hecho (inmodificable)
  │
- └── channels/                 ← Canales (configurables en destino)
-     └── web/                  ← Webchat embebido (React compilado)
+ └── app/                     ← 🖥️ App nativa (Tauri, como el Hub)
+     └── R2 Agent.app          ← .app / .exe según SO
+                                ← Icono en bandeja del sistema
+                                ← Sin navegador, sin terminal
 ```
 
 **Exportar = clonar el cerebro.** Cuando importas en otra máquina, el agente recuerda
@@ -103,13 +105,18 @@ El Hub se convierte en un marketplace/gestor de agentes:
 $ r2 import agente-pos-v1.0.tar.gz
 ✓ Importando agente POS Expert...
 ✓ Engine instalado
-✓ Conocimiento indexado
-✓ Webchat en http://localhost:9001
+✓ App nativa creada
+✓ Icono en la bandeja del sistema
 
 # O directamente:
 $ r2 run agente-pos-v1.0.tar.gz
-✓ Agente POS Expert corriendo en puerto 9001
+✓ POS Expert corriendo
+✓ Icono 🤖 en el menú
+✓ Cmd+Space para abrir/cerrar
 ```
+
+**El usuario NO abre un navegador.** Ve un icono en su bandeja del sistema,
+hace click y habla con el agente como cualquier app nativa.
 
 ### 4.2 Script de instalación
 
@@ -171,8 +178,10 @@ Flujo completo:
 2️⃣ DESPLIEGUE EN MÁQUINA 1 (POS del bar)
    Copias el .tar.gz al PC del bar
    $ r2 import agente-pos-v1.0.tar.gz
-   Configuras: puerto 9001, modelo Ollama local
-   → El agente se conecta al POS local y al chat web
+   Configuras: puerto local, modelo Ollama
+   → Icono 🤖 en la bandeja del sistema
+   → Clic → Hablas con el agente
+   → Se conecta al POS local automáticamente
 
 3️⃣ DESPLIEGUE EN MÁQUINA 2 (otro bar)
    Copias el mismo .tar.gz a otro PC
@@ -266,15 +275,19 @@ El agente exportado es **más limitado que el del Hub** porque no tiene `exec_co
   • Sistema operativo (Windows/Mac/Linux)
   • Ollama (o API key si usa cloud)
   • Nada más
+  • ❌ Sin navegador — app nativa
+  • ❌ Sin terminal — icono en bandeja
 ```
 
 ---
 
 ## 11. Checklist para Trantor
 
-- [ ] `r2 import <package.tar.gz>` → extrae e instala
-- [ ] `r2 run` → inicia el engine local
-- [ ] `r2 update <package.tar.gz>` → actualiza sin perder config
-- [ ] Empaquetado: engine compilado + specialty + knowledge
-- [ ] Despliegue cross-platform (Win/Mac/Linux)
-- [ ] Engine mínimo sin dependencias
+- [ ] `r2 export` en Hub → genera `.tar.gz` con app nativa incluida
+- [ ] `r2 import <package.tar.gz>` → extrae + instala app en bandeja
+- [ ] `r2 run` → inicia engine + app nativa (icono en sistema)
+- [ ] `r2 update <package.tar.gz>` → actualiza sin perder memoria
+- [ ] App nativa empaquetada dentro del `.tar.gz`
+- [ ] Instalación sin navegador, sin terminal
+- [ ] Engine mínimo compilado (Rust, sin dependencias)
+- [ ] Cross-platform: .dmg (Mac) / .exe (Win) / .AppImage (Linux)
