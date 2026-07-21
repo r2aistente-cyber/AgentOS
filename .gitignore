@@ -7,3 +7,7 @@ __pycache__/
 *.sqlite
 .env
 knowledge/
+venv/
+node_modules/
+*.egg-info/
+.vite/
