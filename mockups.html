@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgentOS — Mockups</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; color: #1a1a2e; padding: 40px; }
+h1 { text-align: center; margin-bottom: 10px; font-size: 28px; color: #1a1a2e; }
+.subtitle { text-align: center; margin-bottom: 40px; color: #666; font-size: 14px; }
+.screen { max-width: 1000px; margin: 0 auto 60px; background: white; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); overflow: hidden; }
+.screen-header { padding: 20px 24px; border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: space-between; }
+.screen-title { font-size: 18px; font-weight: 600; color: #1a1a2e; display: flex; align-items: center; gap: 8px; }
+.screen-desc { padding: 12px 24px; background: #f8f9fb; font-size: 13px; color: #666; border-bottom: 1px solid #eee; }
+/* Hub Dashboard */
+.topbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 24px; background: #1a1a2e; color: white; }
+.topbar-left { display: flex; align-items: center; gap: 12px; font-weight: 600; font-size: 16px; }
+.topbar-right { display: flex; align-items: center; gap: 16px; font-size: 13px; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+.status-dot.green { background: #22c55e; }
+.status-dot.yellow { background: #eab308; }
+.agents-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; padding: 24px; }
+.agent-card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; cursor: pointer; transition: all 0.2s; }
+.agent-card:hover { border-color: #6366f1; box-shadow: 0 2px 12px rgba(99,102,241,0.1); }
+.agent-card .avatar { font-size: 36px; margin-bottom: 12px; }
+.agent-card .name { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+.agent-card .desc { font-size: 12px; color: #666; margin-bottom: 12px; }
+.agent-card .meta { display: flex; justify-content: space-between; font-size: 11px; color: #999; }
+.agent-card .badge { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+.badge-active { background: #dcfce7; color: #166534; }
+.badge-stopped { background: #f3f4f6; color: #6b7280; }
+.badge-beta { background: #fef3c7; color: #92400e; }
+.new-agent { border: 2px dashed #d1d5db; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; color: #999; font-size: 14px; cursor: pointer; border-radius: 12px; }
+.new-agent:hover { border-color: #6366f1; color: #6366f1; }
+.new-agent .plus { font-size: 32px; margin-bottom: 8px; }
+/* Agent Detail / Export */
+.detail-layout { display: grid; grid-template-columns: 1fr 340px; min-height: 500px; }
+.detail-left { padding: 24px; border-right: 1px solid #eee; }
+.detail-right { padding: 24px; background: #f8f9fb; }
+.detail-left .agent-info { display: flex; gap: 16px; margin-bottom: 24px; }
+.detail-left .agent-info .avatar { font-size: 48px; }
+.detail-left .agent-info .info .name { font-size: 20px; font-weight: 600; }
+.detail-left .agent-info .info .desc { font-size: 13px; color: #666; }
+.tab-bar { display: flex; gap: 24px; border-bottom: 1px solid #eee; margin-bottom: 20px; }
+.tab { font-size: 13px; padding: 8px 0; color: #666; cursor: pointer; border-bottom: 2px solid transparent; }
+.tab.active { color: #6366f1; border-bottom-color: #6366f1; font-weight: 500; }
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.stat-box { background: #f8f9fb; border-radius: 8px; padding: 16px; }
+.stat-box .label { font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.5px; }
+.stat-box .value { font-size: 24px; font-weight: 600; margin-top: 4px; }
+.detail-right h3 { font-size: 14px; font-weight: 600; margin-bottom: 16px; }
+.export-btn { width: 100%; padding: 14px; background: #6366f1; color: white; border: none; border-radius: 10px; font-size: 15px; font-weight: 500; cursor: pointer; margin-bottom: 12px; }
+.export-btn:hover { background: #4f46e5; }
+.secondary-btn { width: 100%; padding: 12px; background: white; border: 1px solid #d1d5db; border-radius: 10px; font-size: 13px; cursor: pointer; margin-bottom: 8px; }
+.version-list { margin-top: 16px; }
+.version-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #eee; font-size: 13px; }
+.version-item .tag { font-size: 10px; padding: 2px 6px; border-radius: 6px; background: #e5e7eb; }
+.version-item .tag.current { background: #6366f1; color: white; }
+/* Export Dialog */
+.dialog-overlay { background: rgba(0,0,0,0.4); padding: 60px 24px; }
+.dialog { max-width: 540px; margin: 0 auto; background: white; border-radius: 16px; padding: 32px; }
+.dialog h2 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+.dialog .sub { font-size: 13px; color: #666; margin-bottom: 20px; }
+.export-options { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+.export-option { border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px; cursor: pointer; display: flex; align-items: flex-start; gap: 12px; }
+.export-option:hover { border-color: #6366f1; }
+.export-option .radio { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #d1d5db; margin-top: 2px; flex-shrink: 0; }
+.export-option.selected .radio { border-color: #6366f1; background: #6366f1; box-shadow: inset 0 0 0 4px white; }
+.export-option .opt-title { font-size: 14px; font-weight: 500; }
+.export-option .opt-desc { font-size: 12px; color: #666; margin-top: 2px; }
+.progress { margin: 20px 0; }
+.progress-bar { height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; margin-bottom: 8px; }
+.progress-fill { height: 100%; background: #6366f1; border-radius: 3px; width: 68%; transition: width 0.3s; }
+.progress-text { font-size: 12px; color: #666; }
+/* Target machine install wizard */
+.install-screens { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+.install-left { padding: 32px; background: #1a1a2e; color: white; min-height: 400px; display: flex; flex-direction: column; justify-content: center; }
+.install-left h2 { font-size: 24px; margin-bottom: 12px; }
+.install-left p { color: #94a3b8; font-size: 14px; line-height: 1.6; }
+.install-right { padding: 32px; display: flex; flex-direction: column; justify-content: center; }
+.step { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+.step-num { width: 28px; height: 28px; border-radius: 50%; background: #e5e7eb; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; flex-shrink: 0; }
+.step.done .step-num { background: #22c55e; color: white; }
+.step .step-text { font-size: 14px; }
+.step .step-sub { font-size: 12px; color: #999; }
+/* System tray app mockup */
+.tray-area { background: #2d2d3a; padding: 12px 24px; display: flex; justify-content: flex-end; align-items: center; gap: 16px; }
+.tray-area .time { color: #ccc; font-size: 12px; }
+.tray-icon { width: 20px; height: 20px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 14px; cursor: pointer; }
+.tray-menu { position: relative; width: 320px; margin: 40px auto; }
+.tray-menu-content { background: white; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.15); padding: 8px; }
+.tray-menu-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+.tray-menu-item:hover { background: #f3f4f6; }
+.tray-menu-item .icon { font-size: 18px; }
+.tray-menu-divider { height: 1px; background: #e5e7eb; margin: 4px 8px; }
+.agent-status { display: flex; align-items: center; gap: 8px; padding: 8px 12px; font-size: 12px; color: #666; }
+/* Chat window */
+.chat-window { width: 400px; margin: 0 auto 40px; background: white; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.12); overflow: hidden; }
+.chat-topbar { padding: 16px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 12px; }
+.chat-topbar .avatar { font-size: 28px; }
+.chat-topbar .info .name { font-size: 14px; font-weight: 600; }
+.chat-topbar .info .status { font-size: 11px; color: #22c55e; }
+.chat-messages { padding: 16px; min-height: 300px; }
+.chat-msg { display: flex; gap: 10px; margin-bottom: 16px; }
+.chat-msg.user { flex-direction: row-reverse; }
+.chat-msg .bubble { max-width: 80%; padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.5; }
+.chat-msg.agent .bubble { background: #f3f4f6; border-bottom-left-radius: 4px; }
+.chat-msg.user .bubble { background: #6366f1; color: white; border-bottom-right-radius: 4px; }
+.chat-input { display: flex; padding: 12px 16px; border-top: 1px solid #eee; gap: 8px; }
+.chat-input input { flex: 1; padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 24px; font-size: 13px; outline: none; }
+.chat-input input:focus { border-color: #6366f1; }
+.chat-input .send { width: 36px; height: 36px; border-radius: 50%; background: #6366f1; color: white; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+/* Section labels */
+.section-label { max-width: 1000px; margin: 40px auto 16px; font-size: 13px; color: #999; text-transform: uppercase; letter-spacing: 1px; padding-left: 8px; }
+</style>
+</head>
+<body>
+
+<h1>🤖 AgentOS — Mockups</h1>
+<p class="subtitle">Exportación de agentes: Hub → standalone → máquina destino</p>
+
+<!-- Screen 1: Hub Dashboard -->
+<div class="section-label">01 — Agent Hub Dashboard</div>
+<div class="screen">
+  <div class="topbar">
+    <div class="topbar-left">🤖 AgentOS Hub <span style="font-size:12px;color:#94a3b8;font-weight:400;">v2.0</span></div>
+    <div class="topbar-right">
+      <span><span class="status-dot green"></span>Online</span>
+      <span>🤖 Xavier</span>
+      <span>⚙️</span>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;">
+    <div style="font-size:18px;font-weight:600;">Mis Agentes</div>
+    <div style="display:flex;gap:8px;">
+      <span style="padding:6px 12px;background:#f3f4f6;border-radius:8px;font-size:12px;cursor:pointer;">Todos</span>
+      <span style="padding:6px 12px;background:#f3f4f6;border-radius:8px;font-size:12px;cursor:pointer;">Activos</span>
+      <span style="padding:6px 12px;background:#f3f4f6;border-radius:8px;font-size:12px;cursor:pointer;">Detenidos</span>
+    </div>
+  </div>
+  <div class="agents-grid">
+    <div class="agent-card" style="border-color:#6366f1;box-shadow:0 2px 12px rgba(99,102,241,0.1);">
+      <div class="avatar">🧠</div>
+      <div class="name">R2 PRIME</div>
+      <div class="desc">Asistente personal y arquitecto</div>
+      <div class="meta">
+        <span class="badge badge-active">● Activo</span>
+        <span>v1.0</span>
+      </div>
+    </div>
+    <div class="agent-card">
+      <div class="avatar">🧾</div>
+      <div class="name">POS Expert</div>
+      <div class="desc">Gestión de ventas e inventario</div>
+      <div class="meta">
+        <span class="badge badge-active">● Activo</span>
+        <span>v2.3</span>
+      </div>
+    </div>
+    <div class="agent-card">
+      <div class="avatar">⚖️</div>
+      <div class="name">Legal Assistant</div>
+      <div class="desc">Documentos y jurisprudencia</div>
+      <div class="meta">
+        <span class="badge badge-beta">● Beta</span>
+        <span>v0.9</span>
+      </div>
+    </div>
+    <div class="agent-card">
+      <div class="avatar">📢</div>
+      <div class="name">Marketing Agent</div>
+      <div class="desc">Redes sociales y contenido</div>
+      <div class="meta">
+        <span class="badge badge-stopped">● Detenido</span>
+        <span>v0.5</span>
+      </div>
+    </div>
+    <div class="new-agent">
+      <div class="plus">＋</div>
+      <div>Crear nuevo agente</div>
+    </div>
+  </div>
+</div>
+
+<!-- Screen 2: Agent Detail + Export -->
+<div class="section-label">02 — Detalle del agente + Exportar</div>
+<div class="screen">
+  <div class="topbar" style="background:#fff;color:#1a1a2e;border-bottom:1px solid #eee;">
+    <div class="topbar-left"><span style="color:#999;cursor:pointer;">← Mis Agentes</span> <span style="color:#d1d5db;">/</span> POS Expert</div>
+    <div class="topbar-right"><span style="color:#666;">⚙️</span></div>
+  </div>
+  <div class="detail-layout">
+    <div class="detail-left">
+      <div class="agent-info">
+        <div class="avatar">🧾</div>
+        <div class="info">
+          <div class="name">POS Expert <span class="badge badge-active" style="font-size:10px;">● Activo</span></div>
+          <div class="desc">Experto en gestión de ventas, inventario y reportes para bares y restaurantes</div>
+        </div>
+      </div>
+      <div class="tab-bar">
+        <span class="tab active">Estadísticas</span>
+        <span class="tab">Configuración</span>
+        <span class="tab">Herramientas</span>
+        <span class="tab">Logs</span>
+      </div>
+      <div class="stat-grid">
+        <div class="stat-box">
+          <div class="label">Conversaciones</div>
+          <div class="value">1,247</div>
+        </div>
+        <div class="stat-box">
+          <div class="label">Tools ejecutadas</div>
+          <div class="value">4,892</div>
+        </div>
+        <div class="stat-box">
+          <div class="label">Memoria</div>
+          <div class="value">3.2 MB</div>
+        </div>
+        <div class="stat-box">
+          <div class="label">Uptime</div>
+          <div class="value">12d 7h</div>
+        </div>
+      </div>
+      <div style="margin-top:20px;font-size:13px;color:#666;">
+        <strong style="color:#333;">Últimas herramientas usadas:</strong>
+        <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
+          <span style="padding:4px 10px;background:#f3f4f6;border-radius:6px;font-size:11px;">get_daily_sales</span>
+          <span style="padding:4px 10px;background:#f3f4f6;border-radius:6px;font-size:11px;">check_inventory</span>
+          <span style="padding:4px 10px;background:#f3f4f6;border-radius:6px;font-size:11px;">calculate_profits</span>
+          <span style="padding:4px 10px;background:#f3f4f6;border-radius:6px;font-size:11px;">send_report</span>
+        </div>
+      </div>
+    </div>
+    <div class="detail-right">
+      <h3>📦 Exportar agente</h3>
+      <button class="export-btn">📦 Exportar POS Expert</button>
+      <button class="secondary-btn">📋 Última exportación: v2.3</button>
+      <button class="secondary-btn">🔄 Buscar actualizaciones</button>
+      
+      <div class="version-list">
+        <div style="font-size:12px;color:#999;margin-bottom:8px;">Historial de versiones</div>
+        <div class="version-item">
+          <span>v2.3</span>
+          <span class="tag current">Actual</span>
+        </div>
+        <div class="version-item">
+          <span>v2.2</span>
+          <span class="tag">Archivado</span>
+        </div>
+        <div class="version-item">
+          <span>v2.1</span>
+          <span class="tag">Archivado</span>
+        </div>
+        <div class="version-item">
+          <span>v2.0</span>
+          <span class="tag">Archivado</span>
+        </div>
+      </div>
+      
+      <div style="margin-top:16px;font-size:12px;color:#999;line-height:1.5;">
+        <strong style="color:#333;">Lo que incluye:</strong><br>
+        🧠 Personalidad + tools<br>
+        📚 Conocimiento + RAG index<br>
+        💾 Memoria completa (sesiones, aprendizaje)<br>
+        📋 Historial de acciones<br>
+        🖥️ App nativa (sin navegador)
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Screen 3: Export Dialog -->
+<div class="section-label">03 — Diálogo de exportación</div>
+<div class="screen" style="background:transparent;box-shadow:none;">
+  <div class="dialog-overlay">
+    <div class="dialog">
+      <h2>📦 Exportar POS Expert</h2>
+      <p class="sub">Selecciona el tipo de paquete para exportar</p>
+      
+      <div class="export-options">
+        <div class="export-option selected">
+          <div class="radio"></div>
+          <div>
+            <div class="opt-title">📦 Completo (recomendado)</div>
+            <div class="opt-desc">Incluye app nativa, engine, conocimiento y memoria. ~24 MB. Listo para instalar en cualquier máquina.</div>
+          </div>
+        </div>
+        <div class="export-option">
+          <div class="radio"></div>
+          <div>
+            <div class="opt-title">⚡ Solo engine + specialty</div>
+            <div class="opt-desc">Sin memoria ni conocimiento. ~10 MB. Para empezar desde cero en la máquina destino.</div>
+          </div>
+        </div>
+        <div class="export-option">
+          <div class="radio"></div>
+          <div>
+            <div class="opt-title">🔄 Solo actualización</div>
+            <div class="opt-desc">Solo los cambios desde la última exportación. ~<1 MB. Para actualizar agentes ya desplegados.</div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="progress">
+        <div class="progress-bar"><div class="progress-fill"></div></div>
+        <div class="progress-text">Empaquetando... 68% — knowledge/index/</div>
+      </div>
+      
+      <div style="display:flex;gap:8px;">
+        <button class="secondary-btn" style="flex:1;margin:0;">Cancelar</button>
+        <button class="export-btn" style="flex:2;margin:0;">📦 Exportar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Screen 4: Install wizard on target machine -->
+<div class="section-label">04 — Instalación en máquina destino (CLI)</div>
+<div class="screen" style="background:#1e1e2e;color:#cdd6f4;font-family:'SF Mono','Fira Code',monospace;">
+  <div style="padding:24px;font-size:13px;line-height:1.7;">
+    <div style="color:#6c7086;margin-bottom:8px;">$ r2 import pos-expert-v2.3.tar.gz</div>
+    <div><span style="color:#89b4fa;">⟐</span> Extrayendo paquete...</div>
+    <div><span style="color:#89b4fa;">⟐</span> Verificando integridad...</div>
+    <div style="color:#a6e3a1;">✓ Paquete verificado (SHA256)</div>
+    <div><span style="color:#89b4fa;">⟐</span> Instalando engine...</div>
+    <div style="color:#a6e3a1;">✓ Engine instalado (8.2 MB)</div>
+    <div><span style="color:#89b4fa;">⟐</span> Restaurando memoria...</div>
+    <div style="color:#a6e3a1;">✓ 1,247 conversaciones restauradas</div>
+    <div><span style="color:#89b4fa;">⟐</span> Indexando conocimiento RAG...</div>
+    <div style="color:#a6e3a1;">✓ 12 documentos indexados</div>
+    <div><span style="color:#89b4fa;">⟐</span> Creando app en el sistema...</div>
+    <div style="color:#a6e3a1;">✓ Icono añadido a la bandeja del sistema</div>
+    <div style="margin-top:8px;color:#fab387;">⚠️  ¿Tienes Ollama instalado? [S/N]</div>
+    <div style="color:#a6e3a1;">S</div>
+    <div><span style="color:#89b4fa;">⟐</span> Conectando a Ollama (localhost:11434)...</div>
+    <div style="color:#a6e3a1;">✓ Conectado</div>
+    <div><span style="color:#89b4fa;">⟐</span> Cargando modelo qwen2.5:7b...</div>
+    <div style="color:#a6e3a1;">✓ Modelo listo</div>
+    <div style="margin-top:12px;padding:12px;border:1px solid #313244;border-radius:8px;">
+      <div style="color:#a6e3a1;font-size:15px;font-weight:600;">🎉 POS Expert está listo</div>
+      <div style="color:#bac2de;margin-top:4px;">Icono 🤖 en la bandeja del sistema</div>
+      <div style="color:#6c7086;margin-top:4px;">Cmd+Space para abrir/cerrar</div>
+    </div>
+  </div>
+</div>
+
+<!-- Screen 5: System tray menu -->
+<div class="section-label">05 — App nativa en bandeja del sistema</div>
+<div class="screen">
+  <div class="tray-area">
+    <span class="tray-icon">🔊</span>
+    <span class="tray-icon">📶</span>
+    <span class="tray-icon" style="background:#6366f1;color:white;border-radius:50%;width:22px;height:22px;font-size:12px;">🤖</span>
+    <span class="tray-icon">🔋</span>
+    <span class="time">9:01</span>
+  </div>
+  <div style="display:flex;justify-content:center;padding:60px 0;">
+    <div class="tray-menu-content" style="width:300px;">
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #eee;">
+        <span style="font-size:28px;">🧾</span>
+        <div>
+          <div style="font-weight:600;font-size:14px;">POS Expert</div>
+          <div style="font-size:11px;color:#22c55e;">● Conectado · Ollama local</div>
+        </div>
+      </div>
+      <div class="tray-menu-item"><span class="icon">💬</span> Nueva consulta <span style="margin-left:auto;color:#999;font-size:11px;">⌘N</span></div>
+      <div class="tray-menu-item"><span class="icon">📊</span> Ver reporte del día</div>
+      <div class="tray-menu-item"><span class="icon">🔍</span> Consultar inventario</div>
+      <div class="tray-menu-divider"></div>
+      <div class="tray-menu-item"><span class="icon">📦</span> Versión 2.3 <span style="margin-left:auto;color:#999;font-size:11px;">Actualizado</span></div>
+      <div class="tray-menu-item"><span class="icon">⚙️</span> Preferencias</div>
+      <div class="tray-menu-divider"></div>
+      <div class="tray-menu-item" style="color:#ef4444;"><span class="icon">⏹</span> Detener agente</div>
+    </div>
+  </div>
+</div>
+
+<!-- Screen 6: Chat window (native app) -->
+<div class="section-label">06 — Ventana de chat (app nativa, no navegador)</div>
+<div class="screen" style="background:transparent;box-shadow:none;display:flex;justify-content:center;">
+  <div class="chat-window">
+    <div class="chat-topbar">
+      <div class="avatar">🧾</div>
+      <div class="info">
+        <div class="name">POS Expert</div>
+        <div class="status">● En línea</div>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:8px;">
+        <span style="color:#999;cursor:pointer;">─</span>
+        <span style="color:#999;cursor:pointer;">☐</span>
+        <span style="color:#999;cursor:pointer;">✕</span>
+      </div>
+    </div>
+    <div class="chat-messages">
+      <div class="chat-msg agent">
+        <div style="font-size:18px;">🧾</div>
+        <div class="bubble">¡Buenos días! ¿En qué puedo ayudarte con el bar hoy?</div>
+      </div>
+      <div class="chat-msg user">
+        <div class="bubble">¿Cuántas ventas llevamos hoy?</div>
+      </div>
+      <div class="chat-msg agent">
+        <div style="font-size:18px;">🧾</div>
+        <div class="bubble">
+          <div>Consultando el POS...</div>
+          <div style="margin-top:6px;padding:6px 10px;background:#e5e7eb;border-radius:6px;font-size:11px;color:#666;">
+            🔧 get_daily_sales → ✅ 0.3s
+          </div>
+          <div style="margin-top:8px;">Llevamos <strong>28 ventas</strong> por un total de <strong>$1,234,500</strong> hoy. ⭐ El producto más vendido es aguardidente (12 unidades).</div>
+        </div>
+      </div>
+      <div class="chat-msg user">
+        <div class="bubble">¿Queda suficiente inventario para el fin de semana?</div>
+      </div>
+      <div class="chat-msg agent">
+        <div style="font-size:18px;">🧾</div>
+        <div class="bubble">
+          <div>Revisando inventario...</div>
+          <div style="margin-top:6px;padding:6px 10px;background:#e5e7eb;border-radius:6px;font-size:11px;color:#666;">
+            🔧 check_inventory → ✅ 0.2s
+          </div>
+          <div style="margin-top:8px;">
+            ⚠️ Hay productos que se están agotando:
+            <div style="margin-top:6px;">🍾 Aguardidente — 3 botellas (⚠️ bajo)</div>
+            <div style="margin-top:6px;">📦 6 productos necesitan reposición para el fin de semana.</div>
+            <div style="margin-top:6px;">¿Quieres que genere la orden de pedido?</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="chat-input">
+      <input type="text" placeholder="Pregunta sobre ventas, inventario..." />
+      <button class="send">➤</button>
+    </div>
+  </div>
+</div>
+
+<div style="text-align:center;padding:40px;color:#999;font-size:13px;">
+  AgentOS — Mockups v1.0 — 2026-07-21
+</div>
+
+</body>
+</html>
