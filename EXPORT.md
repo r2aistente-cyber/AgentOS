@@ -31,23 +31,36 @@ ASÍ NO:                        ASÍ SÍ:
 
 ## 2. ¿Qué es un agente exportado?
 
-Un **archivo único** que contiene todo lo que el agente necesita para vivir:
+Un **snapshot completo del agente** — su personalidad, su conocimiento Y todo lo que ha aprendido.
 
 ```text
 📦 agente-pos-v1.0.tar.gz     ← Un solo archivo
  ├── manifest.json             ← Metadatos (nombre, versión, autor)
  ├── specialty.json            ← Config del agente (personalidad, tools)
+ │
  ├── engine/                   ← Motor mínimo (binario compilado)
  │   ├── r2-engine             ← Ejecutable (Rust, ~8 MB)
  │   └── config.yaml           ← Config del engine local
+ │
  ├── knowledge/                ← Conocimiento del agente
  │   ├── docs/                 ← Documentos indexados
  │   └── index/                ← RAG index precalculado
+ │
+ ├── memory/                   ← 🧠 SU CEREBRO (todo lo aprendido)
+ │   ├── sessions.db           ← Conversaciones completas
+ │   ├── long_term.db          ← Memoria a largo plazo (clave-valor)
+ │   ├── learnings.db          ← Patrones aprendidos, preferencias
+ │   └── feedback.db           ← Correcciones que ha recibido
+ │
+ ├── audit/                    ← 📋 HISTORIAL DE ACCIONES
+ │   └── audit.log             ← Todo lo que ha hecho (inmodificable)
+ │
  └── channels/                 ← Canales (configurables en destino)
      └── web/                  ← Webchat embebido (React compilado)
 ```
 
-**Tamaño estimado:** ~15-20 MB (sin modelo LLM).
+**Exportar = clonar el cerebro.** Cuando importas en otra máquina, el agente recuerda
+todo: conversaciones anteriores, preferencias del usuario, lecciones aprendidas.
 
 ---
 
