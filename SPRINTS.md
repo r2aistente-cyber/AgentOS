@@ -433,14 +433,11 @@ v2.2 — Pool compartido de LLMs
   → El Hub asigna modelos según demanda
   → Ahorra RAM: 1 modelo en RAM en vez de N
 
-v2.3 — Export/Import agentes (.r2agent)
-  → "Tu agente Legal cabe en un archivo para compartir"
-
-v2.4 — Plugin Store
+v2.3 — Plugin Store
   → Tools descargables desde GitHub
   → Instalar tools de terceros por agente
 
-v2.5 — Modo multiusuario
+v2.4 — Modo multiusuario
   → Cada usuario ve solo sus agentes
   → Login, auth, roles
 ```
@@ -459,8 +456,93 @@ v2.5 — Modo multiusuario
 | 6 | 2 | WhatsApp | 🟡 |
 | 7 | 2 | Instalador | 🔴 Lanzamiento |
 | 8 | 2 | Endurecimiento de seguridad | 🔴 Pre-lanzamiento |
+| **9** | **4** | **Exportación de agentes** | **🔴 Lanzamiento** |
 
 **MVP mínimo** (Sprints 1+2+5): ~7 días → Hub + 1 agente funcional por web
-**Lanzamiento** (Sprints 1-8): ~19 días
+**Lanzamiento** (Sprints 1-9): ~23 días
 
 > ⚠️ **Sprint 8 no es opcional antes de sacar el Hub de localhost o vendérselo a un cliente.** Puede adelantarse si un agente va a exponerse a la red antes del empaquetado.
+
+---
+
+## Sprint 9 — Exportación de Agentes (4 días)
+
+### Objetivo
+El Hub puede exportar cualquier agente como paquete `.tar.gz` que se instala
+en cualquier máquina y corre como app nativa independiente, sin dependencias.
+
+**Archivo de referencia:** `EXPORT.md` (concepto completo).
+
+### 9.1 Exportación
+
+En el Hub → click derecho en un agente → [📦 Exportar]
+→ Se genera: `agente-pos-v1.0.tar.gz`
+
+Contenido del paquete:
+
+```text
+📦 agente-pos-v1.0.tar.gz
+├── install.sh
+├── uninstall.sh
+├── app/                    ← App nativa Tauri (R2 Agent.app)
+│   └── R2 Agent.app       ← .dmg / .exe / .AppImage
+├── engine/
+│   └── r2-engine          ← Rust compilado (~8 MB)
+├── agent/
+│   ├── specialty.json     ← Personalidad + tools
+│   ├── knowledge/         ← Docs + RAG index
+│   ├── memory/            ← Sesiones + aprendizaje
+│   └── audit/             ← Historial de acciones
+└── config.yaml            ← Default (editable)
+```
+
+**La exportación incluye TODO:** personalidad, conocimiento, memoria completa
+(sesiones, feedback, aprendizaje), historial de acciones y app nativa.
+
+### 9.2 Importación e instalación
+
+```bash
+$ r2 import agente-pos-v1.0.tar.gz
+✓ Extrayendo...
+✓ Engine instalado
+✓ App creada en el menú
+✓ Icono 🤖 en la bandeja del sistema
+```
+
+**Sin dependencias:**
+- ❌ Python / Node / Docker / nada
+- ✅ Solo necesita Ollama (o API key)
+- ✅ Sin navegador — app nativa
+- ✅ Sin terminal — icono en bandeja
+
+### 9.3 Actualización y rollback
+
+```bash
+$ r2 update agente-pos-v2.0.tar.gz
+✓ Memoria preservada (no pierde lo aprendido)
+✓ Config local preservada
+
+$ r2 rollback
+✓ Vuelto a v1.0
+```
+
+### 9.4 Caso de uso: POS Expert
+
+```text
+Hub → Creas agente POS Expert con tools del POS
+    → [Exportar] → agente-pos-v1.0.tar.gz
+    → Lo copias a 5 bares distintos
+    → Cada bar: $ r2 import → 🤖 en bandeja
+    → El cajero habla con el agente sin abrir navegador
+    → Mejoras → exportas v2.0 → r2 update en todos
+```
+
+### Checklist
+
+- [ ] `r2 export` en Hub → genera `.tar.gz` completa
+- [ ] `r2 import <package>` → extrae + configura + deja corriendo
+- [ ] `r2 update <package>` → actualiza sin perder memoria/config
+- [ ] `r2 rollback` → vuelve a versión anterior
+- [ ] App nativa Tauri empaquetada dentro del `.tar.gz`
+- [ ] Instalación sin dependencias (solo Ollama)
+- [ ] Cross-platform: .dmg / .exe / .AppImage
