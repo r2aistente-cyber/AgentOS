@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   deleteAgent,
   exportAgent,
+  importAgent,
   getAgentConfig,
   listProviderModels,
   restartAgent,
@@ -159,6 +160,7 @@ export default function AgentDetail({ agent, onBack, onDeleted, onChanged }: Pro
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [modelCatalog, setModelCatalog] = useState<Record<string, string[] | null>>({})
+  const importInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     getAgentConfig(agent.name)
@@ -229,6 +231,24 @@ export default function AgentDetail({ agent, onBack, onDeleted, onChanged }: Pro
       setError((e as Error).message)
     } finally {
       setBusy(false)
+    }
+  }
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setBusy(true)
+    setError(null)
+    setMsg(null)
+    try {
+      const imported = await importAgent(file)
+      setMsg(`Agente "${imported.name}" importado ✓ — aparece offline en el Dashboard`)
+      onChanged()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+      if (importInputRef.current) importInputRef.current.value = ''
     }
   }
 
@@ -362,6 +382,10 @@ export default function AgentDetail({ agent, onBack, onDeleted, onChanged }: Pro
               <button onClick={doExport} disabled={busy} className="text-sm text-indigo-400 hover:text-indigo-300 disabled:opacity-40">
                 📦 Exportar
               </button>
+              <button onClick={() => importInputRef.current?.click()} disabled={busy} className="text-sm text-slate-400 hover:text-slate-200 disabled:opacity-40">
+                📥 Importar
+              </button>
+              <input ref={importInputRef} type="file" accept=".tar.gz" className="hidden" onChange={handleImport} />
             </div>
             <button onClick={save} disabled={busy} className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-40">
               {busy ? 'Guardando…' : 'Guardar'}

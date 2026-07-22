@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
-  importAgent,
   listAgents,
   startAgent,
   stopAgent,
@@ -62,24 +61,6 @@ export default function Dashboard({ onCreate, onChat, onConfig, onLogs }: Props)
   }
 
   const online = agents?.filter((a) => a.status === 'online').length ?? 0
-  const importInputRef = useRef<HTMLInputElement>(null)
-  const [importing, setImporting] = useState(false)
-
-  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setImporting(true)
-    setError(null)
-    try {
-      await importAgent(file)
-      await load()
-    } catch (err) {
-      setError((err as Error).message)
-    } finally {
-      setImporting(false)
-      if (importInputRef.current) importInputRef.current.value = ''
-    }
-  }
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -92,28 +73,12 @@ export default function Dashboard({ onCreate, onChat, onConfig, onLogs }: Props)
               : `${agents.length} agente${agents.length === 1 ? '' : 's'} · ${online} activo${online === 1 ? '' : 's'}`}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <input
-            ref={importInputRef}
-            type="file"
-            accept=".tar.gz"
-            className="hidden"
-            onChange={handleImport}
-          />
-          <button
-            onClick={() => importInputRef.current?.click()}
-            disabled={importing}
-            className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-700 disabled:opacity-40"
-          >
-            {importing ? '⏳ Importando…' : '📦 Importar'}
-          </button>
-          <button
-            onClick={onCreate}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-500"
-          >
-            + Crear Agente
-          </button>
-        </div>
+        <button
+          onClick={onCreate}
+          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-500"
+        >
+          + Crear Agente
+        </button>
       </header>
 
       {/* Barra de stats globales */}
