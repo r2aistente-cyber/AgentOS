@@ -36,27 +36,63 @@ def _should_exclude(path: Path, agent_dir: Path) -> bool:
     return False
 
 
-def _make_install_bat(port_hint: int) -> str:
+_REQUIREMENTS = """\
+fastapi>=0.115
+uvicorn[standard]>=0.30
+httpx>=0.27
+pyyaml>=6
+sentence-transformers>=3
+chromadb>=0.5
+duckduckgo-search>=8
+psutil>=5
+beautifulsoup4>=4
+"""
+
+
+def _make_install_bat() -> str:
     return (
         "@echo off\r\n"
-        ":: Instalador AgentOS — Windows\r\n"
-        "echo Instalando agente...\r\n"
-        "echo El Hub detectara el puerto automaticamente.\r\n"
-        "echo Copia esta carpeta a tu directorio de agentes y usa el Hub para importarla.\r\n"
-        "echo.\r\n"
-        "echo Para importar desde el Hub:\r\n"
-        "echo   POST http://localhost:8234/api/v1/hub/agents/import\r\n"
+        "setlocal\r\n"
+        "cd /d %~dp0agent\r\n"
+        "echo [AgentOS] Verificando Python...\r\n"
+        "python --version >nul 2>&1\r\n"
+        "if errorlevel 1 (\r\n"
+        "    echo [ERROR] Python no encontrado.\r\n"
+        "    echo Instala Python 3.10 o superior desde https://python.org\r\n"
+        "    pause\r\n"
+        "    exit /b 1\r\n"
+        ")\r\n"
+        "echo [AgentOS] Instalando dependencias...\r\n"
+        "python -m pip install -r ..\requirements.txt -q\r\n"
+        "if errorlevel 1 (\r\n"
+        "    echo [ERROR] Fallo al instalar dependencias.\r\n"
+        "    pause\r\n"
+        "    exit /b 1\r\n"
+        ")\r\n"
+        "echo [AgentOS] Leyendo configuracion...\r\n"
+        "for /f %%i in ('python -c \"import yaml; c=yaml.safe_load(open('config.yaml')); print(c.get('agent',{}).get('port',9000))\"') do set PORT=%%i\r\n"
+        "echo [AgentOS] Iniciando agente en puerto %PORT%...\r\n"
+        "python -m uvicorn agent_main:app --host 0.0.0.0 --port %PORT%\r\n"
         "pause\r\n"
     )
 
 
-def _make_install_sh(port_hint: int) -> str:
+def _make_install_sh() -> str:
     return (
         "#!/usr/bin/env bash\n"
-        "# Instalador AgentOS — Linux / macOS\n"
-        "echo 'Importa este paquete desde el Hub:'\n"
-        "echo '  POST http://localhost:8234/api/v1/hub/agents/import'\n"
-        "echo 'O usa el botón Importar en la UI del Hub.'\n"
+        'set -e\n'
+        'cd "$(dirname "$0")/agent"\n'
+        'echo "[AgentOS] Verificando Python..."\n'
+        'if ! command -v python3 &>/dev/null; then\n'
+        '    echo "[ERROR] Python3 no encontrado. Instala Python 3.10+"\n'
+        '    exit 1\n'
+        'fi\n'
+        'echo "[AgentOS] Instalando dependencias..."\n'
+        'python3 -m pip install -r ../requirements.txt -q\n'
+        'echo "[AgentOS] Leyendo configuracion..."\n'
+        "PORT=$(python3 -c \"import yaml; c=yaml.safe_load(open('config.yaml')); print(c.get('agent',{}).get('port',9000))\")\n"
+        'echo "[AgentOS] Iniciando agente en puerto $PORT..."\n'
+        'exec python3 -m uvicorn agent_main:app --host 0.0.0.0 --port "$PORT"\n'
     )
 
 
@@ -77,9 +113,16 @@ def export_agent(agent_name: str, agent_dir: Path, description: str = "") -> byt
         manifest_bytes = json.dumps(manifest, indent=2, ensure_ascii=False).encode()
         _add_bytes(tar, "manifest.json", manifest_bytes)
 
+        # requirements.txt en la raíz (compartido entre install.bat y install.sh)
+        _add_bytes(tar, "requirements.txt", _REQUIREMENTS.encode("utf-8"))
+
         # install scripts en la raíz
-        _add_bytes(tar, "install.bat", _make_install_bat(0).encode("utf-8"))
-        _add_bytes(tar, "install.sh",  _make_install_sh(0).encode("utf-8"))
+        _add_bytes(tar, "install.bat", _make_install_bat().encode("utf-8"))
+        inst_sh = _make_install_sh().encode("utf-8")
+        info_sh = tarfile.TarInfo(name="install.sh")
+        info_sh.size = len(inst_sh)
+        info_sh.mode = 0o755  # ejecutable
+        tar.addfile(info_sh, io.BytesIO(inst_sh))
 
         # Contenido completo del agente bajo agent/
         for item in sorted(agent_dir.rglob("*")):
