@@ -310,17 +310,17 @@ export async function uploadToAgent(
 
 // ---- Export / Import (vía Hub) ----
 
-/** Descarga el agente como tar.gz y dispara la descarga del navegador. */
-export async function exportAgent(name: string): Promise<void> {
-  const res = await fetch(`${HUB}/agents/${encodeURIComponent(name)}/export`)
-  if (!res.ok) throw new Error(`Export error: ${res.status}`)
-  const blob = await res.blob()
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${name}-export.tar.gz`
-  a.click()
-  URL.revokeObjectURL(url)
+export interface ExportResult {
+  path: string
+  filename: string
+  size_kb: number
+}
+
+/** Exporta el agente a ~/AgentOS/exports/ en el servidor y devuelve la ruta. */
+export async function exportAgent(name: string): Promise<ExportResult> {
+  return req<ExportResult>(`${HUB}/agents/${encodeURIComponent(name)}/export`, {
+    method: 'POST',
+  })
 }
 
 /** Importa un agente desde un archivo .tar.gz. */

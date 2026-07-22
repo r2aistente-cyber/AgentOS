@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, UploadFile
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from hub import config as hub_config
@@ -14,6 +14,8 @@ from hub.agent_manager import AgentManager
 from hub.exporter import export_agent
 from hub.importer import import_agent
 from hub.whatsapp_manager import WhatsAppManager
+
+_HUB_URL = "http://localhost:8234"
 
 router = APIRouter(prefix="/api/v1/hub", tags=["agents"])
 
@@ -252,9 +254,9 @@ def whatsapp_qr(name: str) -> dict:
     return qr_data
 
 
-@router.get("/agents/{name}/export")
+@router.post("/agents/{name}/export")
 async def export_agent_endpoint(name: str):
-    """Descarga el agente completo como .tar.gz (config + engine + knowledge + memory)."""
+    """Exporta el agente como .tar.gz en ~/AgentOS/exports/ y devuelve la ruta."""
     try:
         info = manager.get(name)
     except KeyError as e:
@@ -265,12 +267,13 @@ async def export_agent_endpoint(name: str):
     agent_dir = Path(info.dir)
 
     pkg_bytes = await asyncio.to_thread(export_agent, name, agent_dir, description)
+
+    exports_dir = hub_config.exports_dir()
     filename = f"{name}-export.tar.gz"
-    return Response(
-        content=pkg_bytes,
-        media_type="application/gzip",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
+    out_path = exports_dir / filename
+    await asyncio.to_thread(out_path.write_bytes, pkg_bytes)
+
+    return {"path": str(out_path), "filename": filename, "size_kb": round(len(pkg_bytes) / 1024, 1)}
 
 
 @router.post("/agents/import", status_code=201)

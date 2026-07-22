@@ -67,6 +67,13 @@ def agents_dir() -> Path:
     return d
 
 
+def exports_dir() -> Path:
+    """Carpeta donde se guardan los paquetes exportados (~/AgentOS/exports)."""
+    d = home_dir() / "exports"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
 def archived_dir() -> Path:
     d = home_dir() / "archived"
     d.mkdir(parents=True, exist_ok=True)

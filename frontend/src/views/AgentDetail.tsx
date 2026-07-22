@@ -225,8 +225,8 @@ export default function AgentDetail({ agent, onBack, onDeleted, onChanged }: Pro
     setError(null)
     setMsg(null)
     try {
-      await exportAgent(agent.name)
-      setMsg('Exportación lista — revisa tus descargas ✓')
+      const result = await exportAgent(agent.name)
+      setMsg(`✓ Exportado (${result.size_kb} KB) → ${result.path}`)
     } catch (e) {
       setError((e as Error).message)
     } finally {
