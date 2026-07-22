@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   deleteAgent,
+  exportAgent,
   getAgentConfig,
   listProviderModels,
   restartAgent,
@@ -217,6 +218,20 @@ export default function AgentDetail({ agent, onBack, onDeleted, onChanged }: Pro
     }
   }
 
+  const doExport = async () => {
+    setBusy(true)
+    setError(null)
+    setMsg(null)
+    try {
+      await exportAgent(agent.name)
+      setMsg('Exportación lista — revisa tus descargas ✓')
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const online = agent.status === 'online'
 
   return (
@@ -340,9 +355,14 @@ export default function AgentDetail({ agent, onBack, onDeleted, onChanged }: Pro
           </p>
 
           <div className="flex items-center justify-between border-t border-slate-800 pt-4">
-            <button onClick={remove} disabled={busy} className="text-sm text-rose-400 hover:text-rose-300 disabled:opacity-40">
-              🗑️ Eliminar agente
-            </button>
+            <div className="flex gap-3">
+              <button onClick={remove} disabled={busy} className="text-sm text-rose-400 hover:text-rose-300 disabled:opacity-40">
+                🗑️ Eliminar
+              </button>
+              <button onClick={doExport} disabled={busy} className="text-sm text-indigo-400 hover:text-indigo-300 disabled:opacity-40">
+                📦 Exportar
+              </button>
+            </div>
             <button onClick={save} disabled={busy} className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-40">
               {busy ? 'Guardando…' : 'Guardar'}
             </button>

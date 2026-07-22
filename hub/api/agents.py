@@ -5,11 +5,14 @@ import asyncio
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
+from hub import config as hub_config
 from hub.agent_manager import AgentManager
+from hub.exporter import export_agent
+from hub.importer import import_agent
 from hub.whatsapp_manager import WhatsAppManager
 
 router = APIRouter(prefix="/api/v1/hub", tags=["agents"])
@@ -247,6 +250,63 @@ def whatsapp_qr(name: str) -> dict:
     if qr_data is None:
         raise HTTPException(status_code=404, detail="Sin QR disponible")
     return qr_data
+
+
+@router.get("/agents/{name}/export")
+async def export_agent_endpoint(name: str):
+    """Descarga el agente completo como .tar.gz (config + engine + knowledge + memory)."""
+    try:
+        info = manager.get(name)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    cfg = manager.get_config(name)
+    description = (cfg.get("agent") or {}).get("description", "")
+    agent_dir = Path(info.dir)
+
+    pkg_bytes = await asyncio.to_thread(export_agent, name, agent_dir, description)
+    filename = f"{name}-export.tar.gz"
+    return Response(
+        content=pkg_bytes,
+        media_type="application/gzip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/agents/import", status_code=201)
+async def import_agent_endpoint(file: UploadFile):
+    """Importa un agente desde un .tar.gz exportado por AgentOS."""
+    if not file.filename or not file.filename.endswith(".tar.gz"):
+        raise HTTPException(status_code=400, detail="El archivo debe ser un .tar.gz")
+
+    pkg_bytes = await file.read()
+    existing = {a.name for a in manager.list()}
+    dest_base = hub_config.agents_dir()
+
+    try:
+        port = manager._next_port()
+        agent_name, agent_dir, cfg = await asyncio.to_thread(
+            import_agent, pkg_bytes, dest_base, port, existing
+        )
+    except (ValueError, FileExistsError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al importar: {e}")
+
+    from hub.models import AgentInfo
+    info = AgentInfo(
+        name=agent_name,
+        port=port,
+        dir=str(agent_dir),
+        install_path=str(agent_dir),
+        status="offline",
+        auto_restart=bool(cfg.get("auto_restart", False)),
+    )
+    with manager._lock:
+        manager.agents[agent_name] = info
+        manager._save_registry()
+
+    return info.to_dict()
 
 
 @router.get("/stats")

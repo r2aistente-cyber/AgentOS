@@ -220,11 +220,13 @@ export async function chatWithAgent(
   message: string,
   sessionId: string | null,
   model?: string | null,
+  signal?: AbortSignal,
 ): Promise<ChatResponse> {
   const res = await agentFetch(agentName, port, '/api/v1/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message, session_id: sessionId, model: model || null }),
+    signal,
   })
   if (!res.ok) throw new Error(`Chat error: ${res.status}`)
   return res.json()
@@ -303,6 +305,34 @@ export async function uploadToAgent(
     body: form,
   })
   if (!res.ok) throw new Error(`Upload error: ${res.status}`)
+  return res.json()
+}
+
+// ---- Export / Import (vía Hub) ----
+
+/** Descarga el agente como tar.gz y dispara la descarga del navegador. */
+export async function exportAgent(name: string): Promise<void> {
+  const res = await fetch(`${HUB}/agents/${encodeURIComponent(name)}/export`)
+  if (!res.ok) throw new Error(`Export error: ${res.status}`)
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${name}-export.tar.gz`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+/** Importa un agente desde un archivo .tar.gz. */
+export async function importAgent(file: File): Promise<AgentInfo> {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await fetch(`${HUB}/agents/import`, { method: 'POST', body: form })
+  if (!res.ok) {
+    let detail = `${res.status} ${res.statusText}`
+    try { const b = await res.json(); if (b?.detail) detail = b.detail } catch {}
+    throw new Error(detail)
+  }
   return res.json()
 }
 

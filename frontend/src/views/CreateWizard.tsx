@@ -236,7 +236,7 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
   useEffect(() => {
     setModelCatalog(STATIC_CATALOG)
     listProviderModels()
-      .then((dynamic) => setModelCatalog((prev) => ({ ...STATIC_CATALOG, ...dynamic })))
+      .then((dynamic) => setModelCatalog({ ...STATIC_CATALOG, ...dynamic }))
       .catch(() => {})
   }, [])
 
