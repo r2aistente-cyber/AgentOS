@@ -26,6 +26,9 @@ llm:
     - {provider: "ollama", model: "qwen2.5:latest", label: "Qwen 2.5"}
     # - {provider: "opencode-go", model: "deepseek-v4-flash", label: "DeepSeek V4 Flash"}
 
+search:
+  brave_api_key: ""   # opcional — dejar vacío para usar DuckDuckGo gratis
+
 tools:
   allow:
     - read_file
