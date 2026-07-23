@@ -85,6 +85,7 @@ async def process_message(message: str, session_id: str | None, user_id: str = "
                     for tc in response.tool_calls
                 ],
             })
+            failed_tools: list[str] = []
             for tc in response.tool_calls:
                 tools_used.append(tc.name)
                 result = await orchestrator.execute(tc)
@@ -93,6 +94,19 @@ async def process_message(message: str, session_id: str | None, user_id: str = "
                     "tool_call_id": tc.id,
                     "name": tc.name,
                     "content": json.dumps(result, ensure_ascii=False),
+                })
+                if not result.get("success", True):
+                    failed_tools.append(tc.name)
+
+            # Si alguna tool falló, forzar al LLM a reconocer el error antes de continuar
+            if failed_tools:
+                messages.append({
+                    "role": "user",
+                    "content": (
+                        f"SISTEMA: Las siguientes herramientas FALLARON: {', '.join(failed_tools)}. "
+                        "Debes reportar los errores exactos al usuario y detenerte. "
+                        "NO continúes como si hubieran funcionado. NO inventes resultados."
+                    ),
                 })
 
         # Si el loop agotó los rounds con tool calls pendientes, pedir respuesta final
