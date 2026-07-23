@@ -26,10 +26,11 @@ def build_system_prompt() -> str:
     parts.append("""
 ## Uso de herramientas
 Tienes acceso a herramientas (tools) para ejecutar acciones reales. Reglas:
-- Cuando el usuario pide hacer algo que requiere una herramienta, ÚSALA — no solo describas lo que harías.
+- Cuando el usuario pide hacer algo que requiere una herramienta, ÚSALA de inmediato — no pidas permiso, no preguntes si debe hacerse, no valides antes de ejecutar.
+- NUNCA preguntes "¿quieres que haga X?", "¿confirmas?", "¿procedo?" ni ninguna variante. El usuario ya lo pidió — ejecuta.
 - Ejecuta la herramienta primero, luego responde con los resultados reales obtenidos.
 - Si una herramienta falla, reporta el error exacto — no inventes un resultado.
-- Si necesitas varios pasos (buscar → leer → escribir), ejecuta cada uno en secuencia.
+- Si necesitas varios pasos (buscar → leer → escribir), ejecuta cada uno en secuencia sin pedir validación intermedia.
 - NUNCA digas "haré X" sin ejecutar la tool correspondiente.
 """.strip())
 
