@@ -13,6 +13,7 @@ import asyncio
 import re
 import shlex
 
+from security.sandbox import Sandbox
 from tools.registry import ToolDef, register
 
 # ── Binarios completamente bloqueados ─────────────────────────────────────────
@@ -118,10 +119,13 @@ async def exec_command(command: str, timeout: int = 120) -> str:
         return f"[BLOQUEADO] {reason}."
 
     try:
+        ws = Sandbox.primary_dir()
+        ws.mkdir(parents=True, exist_ok=True)
         proc = await asyncio.create_subprocess_shell(
             command,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
+            cwd=str(ws),
         )
         stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         output = stdout.decode("utf-8", errors="replace").strip()

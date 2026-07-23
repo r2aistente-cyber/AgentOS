@@ -17,6 +17,11 @@ def _allowed_dirs() -> list[Path]:
 
 class Sandbox:
     @staticmethod
+    def primary_dir() -> Path:
+        """Devuelve la carpeta principal del workspace del agente."""
+        return _allowed_dirs()[0]
+
+    @staticmethod
     def resolve(rel_path: str) -> Path:
         """Resuelve una ruta dentro del sandbox; PermissionError si escapa."""
         target = Path(rel_path).expanduser()

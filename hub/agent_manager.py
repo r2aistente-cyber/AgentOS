@@ -279,14 +279,16 @@ class AgentManager:
         merged["agent"]["port"] = port
         merged["agent"]["install_path"] = str(agent_dir)
         merged["agent"]["status"] = "offline"
-        # sandbox por defecto = data/ del propio agente
+        # workspace/ es la carpeta de trabajo del agente (archivos, proyectos, outputs)
+        workspace_dir = agent_dir / "workspace"
+        merged["agent"]["workspace"] = str(workspace_dir)
         merged.setdefault("security", {})
-        merged["security"].setdefault("sandbox_paths", [str(agent_dir / "data")])
+        merged["security"].setdefault("sandbox_paths", [str(workspace_dir)])
         # Generar token único por agente si no viene en el body
         if not merged["security"].get("token"):
             merged["security"]["token"] = secrets.token_hex(32)
-        # RAG: knowledge apunta a data/knowledge/ del agente por defecto
-        merged.setdefault("knowledge", [str(agent_dir / "data" / "knowledge")])
+        # RAG: knowledge apunta a workspace/knowledge/ del agente por defecto
+        merged.setdefault("knowledge", [str(workspace_dir / "knowledge")])
         return merged
 
 

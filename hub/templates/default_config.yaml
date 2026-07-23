@@ -38,7 +38,10 @@ tools:
 
 security:
   level: 2
-  # sandbox_paths: lo rellena el Hub con data/ del agente si no se especifica
+  # sandbox_paths: carpetas donde el agente puede leer/escribir.
+  # Si está vacío, se usa la carpeta workspace/ del propio agente.
+  # El Hub rellena esto con la ruta real al crear el agente.
+  sandbox_paths: []
 
 channels:
   web: true

@@ -2,6 +2,32 @@
 from __future__ import annotations
 
 import agent_config as config
+from security.sandbox import Sandbox
+
+
+def _workspace_block() -> str:
+    """Informa al agente de su workspace y qué contiene actualmente."""
+    try:
+        ws = Sandbox.primary_dir()
+        ws.mkdir(parents=True, exist_ok=True)
+        entries = sorted(ws.iterdir())
+        if entries:
+            listing = "\n".join(
+                f"  {'[DIR] ' if e.is_dir() else ''}{e.name}"
+                for e in entries[:30]
+            )
+        else:
+            listing = "  (vacío)"
+        return (
+            f"## Tu workspace\n"
+            f"Ruta: `{ws}`\n"
+            f"Todas las operaciones de archivos ocurren dentro de esta carpeta.\n"
+            f"Usa rutas relativas (ej: `archivo.py`, `src/main.py`) — el sistema\n"
+            f"las resuelve automáticamente dentro de tu workspace.\n\n"
+            f"Contenido actual:\n{listing}"
+        )
+    except Exception:
+        return ""
 
 
 def build_system_prompt() -> str:
@@ -15,6 +41,10 @@ def build_system_prompt() -> str:
     description = config.get("agent.description")
     if description:
         parts.append(f"Tu propósito: {description}.")
+
+    ws_block = _workspace_block()
+    if ws_block:
+        parts.append(ws_block)
 
     tone = personality.get("tone")
     if tone:

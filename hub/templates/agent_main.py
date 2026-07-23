@@ -26,11 +26,12 @@ from starlette.middleware.base import BaseHTTPMiddleware
 import agent_config as config
 from memory.db import init_db
 from memory import session as session_store
+from security.sandbox import Sandbox
 from tools import registry
 import tools.base_tools  # noqa: F401  (registra las base tools)
 
 AGENT_NAME = config.get("agent.name", config.AGENT_DIR.name)
-DATA_DIR = config.AGENT_DIR / "data"
+DATA_DIR   = Sandbox.primary_dir()   # workspace del agente (relativo a su carpeta)
 _START = time.time()
 
 # ── Token de autenticación ────────────────────────────────────────────────────

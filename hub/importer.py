@@ -81,7 +81,8 @@ def import_agent(
     # Nuevo token de seguridad (cada instancia tiene el suyo)
     cfg.setdefault("security", {})
     cfg["security"]["token"] = secrets.token_hex(32)
-    cfg["security"].setdefault("sandbox_paths", [str(agent_dir / "data")])
+    cfg["agent"]["workspace"] = str(agent_dir / "workspace")
+    cfg["security"].setdefault("sandbox_paths", [str(agent_dir / "workspace")])
 
     # Actualizar knowledge paths si apuntaban al directorio original
     if "knowledge" in cfg and isinstance(cfg["knowledge"], list):
