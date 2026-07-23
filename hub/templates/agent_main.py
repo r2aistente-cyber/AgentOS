@@ -77,13 +77,6 @@ async def lifespan(app: FastAPI):
     if config.get("llm.provider") == "ollama":
         from llm.ollama import OllamaAdapter
         asyncio.create_task(OllamaAdapter().warmup())
-    async def _bg_rag():
-        try:
-            from engine import _ensure_rag_indexed
-            await asyncio.to_thread(_ensure_rag_indexed)
-        except Exception:
-            pass
-    asyncio.create_task(_bg_rag())
     yield
 
 
