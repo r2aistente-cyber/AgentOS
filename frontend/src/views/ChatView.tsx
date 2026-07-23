@@ -198,14 +198,11 @@ export default function ChatView({ agent: initialAgent, onBack }: Props) {
     // Timer que cuenta segundos mientras el modelo piensa
     const timer = setInterval(() => setThinkingSec((s) => s + 1), 1000)
 
-    // Timeout de 120s: aborta si el modelo no responde
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 120_000)
 
     const wasNew = !sessionId
     try {
       const res = await chatWithAgent(agent.name, agent.port, payload, sessionId, activeModel || null, controller.signal)
-      clearTimeout(timeout)
       clearInterval(timer)
       setSessionId(res.session_id)
       if (res.context_tokens != null && res.context_limit != null) {
@@ -214,18 +211,14 @@ export default function ChatView({ agent: initialAgent, onBack }: Props) {
       setMessages((m) => [...m, { role: 'assistant', content: res.reply, tools: res.tools_used }])
       if (wasNew) await refreshSessions()
     } catch (e) {
-      clearTimeout(timeout)
       clearInterval(timer)
-      const errMsg = (e as Error).name === 'AbortError'
-        ? '⏱️ El modelo tardó demasiado en responder (120s). Intenta de nuevo con un mensaje más corto.'
-        : (e as Error).message
+      const errMsg = (e as Error).message
       setError(errMsg)
       setMessages((m) => [
         ...m,
-        { role: 'assistant', content: errMsg.startsWith('⏱️') ? errMsg : '⚠️ Error al contactar al agente: ' + errMsg },
+        { role: 'assistant', content: '⚠️ Error al contactar al agente: ' + errMsg },
       ])
     } finally {
-      clearTimeout(timeout)
       clearInterval(timer)
       setSending(false)
       setThinkingSec(0)
