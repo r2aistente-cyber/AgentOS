@@ -125,7 +125,11 @@ async def exec_command(command: str, timeout: int = 120) -> str:
         )
         stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         output = stdout.decode("utf-8", errors="replace").strip()
-        return output[:4000] if output else f"(sin salida, código {proc.returncode})"
+        if proc.returncode != 0:
+            # Fallo real — el runtime lo detecta, no el LLM
+            prefix = f"[FAILED exit={proc.returncode}]"
+            return f"{prefix}\n{output[:3900]}" if output else prefix
+        return output[:4000] if output else "(sin salida, exit 0)"
     except asyncio.TimeoutError:
         try:
             proc.kill()

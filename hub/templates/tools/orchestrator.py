@@ -1,100 +1,184 @@
-"""Ejecuta tool calls validando permisos, confirmaciones y registrando en auditoría.
+"""Ejecuta tool calls con verificación en código — estilo OpenClaw.
 
-Gate de confirmación (Sprint 8):
-  - Tools con requires_confirm=True requieren que la sesión tenga un token de
-    confirmación activo antes de ejecutarse.
-  - El engine expone el token pendiente al frontend, que muestra un botón.
-  - El frontend manda el mensaje de confirmación → el engine lo reconoce y activa
-    el token → el LLM reintenta la tool call → se ejecuta.
+Principios:
+  - El runtime verifica pre y postcondiciones, no el LLM.
+  - Hooks before_tool / after_tool interceptan cada ejecución.
+  - ToolResult.success lo determina el código, nunca el modelo.
+  - Confirmaciones preservan la ToolCall completa (argumentos incluidos).
 """
 from __future__ import annotations
 
 import asyncio
 import inspect
+import logging
 import time
-from typing import Any
+from typing import Any, Callable
 
 import agent_config as config
 from llm.adapter import ToolCall
 from security.audit import AuditLog
 from security.permissions import PermissionEnforcer
 from tools import registry
+from tools.registry import ToolResult
 
-# Token de confirmación por sesión: {session_id: set_de_tools_aprobadas}
-# Se limpia tras cada ejecución aprobada para no reutilizarlo.
-_confirmed: dict[str, set[str]] = {}
+log = logging.getLogger(__name__)
 
-# Palabras que el usuario puede escribir para confirmar una acción peligrosa.
-_CONFIRM_WORDS = {"confirmar", "confirm", "sí", "si", "yes", "ok", "adelante", "procede"}
+# ── Gate de confirmación ──────────────────────────────────────────────────────
+# Preserva la ToolCall COMPLETA (no solo el nombre) para reinyectarla
+# directamente sin pasar por el LLM tras la confirmación del usuario.
+_pending:   dict[str, ToolCall]   = {}   # session_id → ToolCall pendiente
+_confirmed: dict[str, set[str]]   = {}   # session_id → tools aprobadas
 
-_SECURITY_LEVEL = int((config.get("security", {}) or {}).get("level", 1))
-_REQUIRE_CONFIRM_LEVEL = 2  # a partir de nivel 2 se activa el gate
+_CONFIRM_WORDS = frozenset({
+    "confirmar", "confirm", "sí", "si", "yes", "ok", "adelante", "procede", "dale"
+})
 
-
-def mark_confirmed(session_id: str, tool_name: str) -> None:
-    """Llamado por el engine cuando detecta una palabra de confirmación del usuario."""
-    _confirmed.setdefault(session_id, set()).add(tool_name)
+_SECURITY_LEVEL       = int((config.get("security", {}) or {}).get("level", 1))
+_REQUIRE_CONFIRM_LEVEL = 2
 
 
 def is_confirmation_message(text: str) -> bool:
-    """True si el mensaje del usuario es una confirmación."""
     return text.strip().lower() in _CONFIRM_WORDS
 
 
+def get_pending_tool(session_id: str) -> ToolCall | None:
+    """Retorna la ToolCall pendiente de confirmación (argumentos completos)."""
+    return _pending.get(session_id)
+
+
+def mark_confirmed(session_id: str) -> ToolCall | None:
+    """Consume el token y retorna la ToolCall lista para ejecutar."""
+    tc = _pending.pop(session_id, None)
+    if tc:
+        _confirmed.setdefault(session_id, set()).add(tc.name)
+    return tc
+
+
+# ── Hooks del runtime (before_tool / after_tool) ─────────────────────────────
+_before_hooks: list[Callable] = []
+_after_hooks:  list[Callable] = []
+
+
+def register_before_hook(fn: Callable) -> None:
+    _before_hooks.append(fn)
+
+
+def register_after_hook(fn: Callable) -> None:
+    _after_hooks.append(fn)
+
+
+# ── Orchestrator ──────────────────────────────────────────────────────────────
+
 class ToolOrchestrator:
     def __init__(self, session_id: str | None = None) -> None:
-        self.session_id = session_id
+        self.session_id = session_id or ""
         self._perms = PermissionEnforcer()
         self._audit = AuditLog()
 
-    async def execute(self, tool_call: ToolCall) -> dict[str, Any]:
+    async def execute(self, tool_call: ToolCall) -> ToolResult:
+        """Pipeline de ejecución verificada. El LLM nunca decide si funcionó."""
         start = time.monotonic()
-        tool = registry.get(tool_call.name)
+        sid   = self.session_id
+        name  = tool_call.name
+        args  = tool_call.arguments
 
+        # 1. ¿Existe la tool?
+        tool = registry.get(name)
         if not tool:
-            return self._fail(tool_call, f"Tool '{tool_call.name}' no existe", start)
-        if not self._perms.is_allowed(tool_call.name):
-            return self._fail(tool_call, f"Tool '{tool_call.name}' no permitida para este agente", start)
+            return self._fail(name, args,
+                f"Tool '{name}' no existe en este agente. "
+                "Solo puedes usar las tools listadas en tu configuración.",
+                start, blocked=True)
 
-        # ── Gate de confirmación ───────────────────────────────────────────────
+        # 2. ¿Está permitida para este agente?
+        if not self._perms.is_allowed(name):
+            return self._fail(name, args,
+                f"Tool '{name}' no está en la lista de tools permitidas.",
+                start, blocked=True)
+
+        # 3. Gate de confirmación (decisión del runtime, no del LLM)
         if tool.requires_confirm and _SECURITY_LEVEL >= _REQUIRE_CONFIRM_LEVEL:
-            sid = self.session_id or ""
-            confirmed_tools = _confirmed.get(sid, set())
-            if tool_call.name not in confirmed_tools:
-                self._audit.log(
-                    sid, tool_call.name, tool_call.arguments,
-                    "PENDING_CONFIRM", False,
-                    int((time.monotonic() - start) * 1000),
+            confirmed_set = _confirmed.get(sid, set())
+            if name not in confirmed_set:
+                _pending[sid] = tool_call          # guardar COMPLETA con args
+                self._audit.log(sid, name, args, "PENDING_CONFIRM", False,
+                                int((time.monotonic() - start) * 1000))
+                return ToolResult(
+                    raw=None, success=False, blocked=True,
+                    error=(f"'{name}' requiere confirmación explícita. "
+                           "Escribe 'confirmar' para proceder."),
                 )
-                return {
-                    "success": False,
-                    "pending_confirmation": True,
-                    "tool": tool_call.name,
-                    "error": (
-                        f"La acción '{tool_call.name}' requiere confirmación explícita. "
-                        "Escribe 'confirmar' para proceder."
-                    ),
-                }
-            # Confirmación consumida — eliminar para no reutilizar
-            confirmed_tools.discard(tool_call.name)
+            confirmed_set.discard(name)
 
+        # 4. Hooks before_tool (el hook puede bloquear con {"block": True})
+        for hook in _before_hooks:
+            try:
+                verdict = await _call_maybe_async(hook, name, args)
+                if isinstance(verdict, dict) and verdict.get("block"):
+                    reason = verdict.get("reason", "bloqueado por hook")
+                    return self._fail(name, args, reason, start, blocked=True)
+            except Exception as e:
+                log.warning("before_tool hook error (%s): %s", name, e)
+
+        # 5. Precondición del contrato (código puro)
+        if tool.contract and tool.contract.precondition:
+            try:
+                ok, reason = tool.contract.precondition(args)
+                if not ok:
+                    return self._fail(name, args,
+                        f"Precondición no cumplida: {reason}", start)
+            except Exception as e:
+                return self._fail(name, args, f"Error en precondición: {e}", start)
+
+        # 6. Ejecutar el handler
         try:
-            result = await _call(tool.handler, tool_call.arguments)
+            raw = await _call(tool.handler, args)
+        except Exception as exc:
             ms = int((time.monotonic() - start) * 1000)
-            self._audit.log(self.session_id, tool_call.name, tool_call.arguments, result, True, ms)
-            return {"success": True, "result": result}
-        except Exception as exc:  # noqa: BLE001
-            ms = int((time.monotonic() - start) * 1000)
-            self._audit.log(self.session_id, tool_call.name, tool_call.arguments, str(exc), False, ms)
-            return {"success": False, "error": str(exc)}
+            self._audit.log(sid, name, args, str(exc), False, ms)
+            return ToolResult(raw=None, success=False, error=str(exc))
 
-    def _fail(self, tool_call: ToolCall, msg: str, start: float) -> dict:
+        # 7. Postcondición del contrato (el runtime verifica, no el LLM)
+        verified = False
+        if tool.contract and tool.contract.postcondition:
+            try:
+                ok, reason = tool.contract.postcondition(args, raw)
+                verified = True
+                if not ok:
+                    ms = int((time.monotonic() - start) * 1000)
+                    self._audit.log(sid, name, args, f"POSTCOND_FAIL:{reason}", False, ms)
+                    return ToolResult(raw=raw, success=False, verified=True,
+                                      error=f"Verificación falló: {reason}")
+            except Exception as e:
+                log.warning("postcondition error (%s): %s", name, e)
+
+        # 8. Hooks after_tool
+        for hook in _after_hooks:
+            try:
+                await _call_maybe_async(hook, name, args, result=raw)
+            except Exception as e:
+                log.warning("after_tool hook error (%s): %s", name, e)
+
         ms = int((time.monotonic() - start) * 1000)
-        self._audit.log(self.session_id, tool_call.name, tool_call.arguments, msg, False, ms)
-        return {"success": False, "error": msg}
+        self._audit.log(sid, name, args, raw, True, ms)
+        return ToolResult(raw=raw, success=True, verified=verified)
+
+    def _fail(self, name: str, args: dict, msg: str, start: float,
+              blocked: bool = False) -> ToolResult:
+        ms = int((time.monotonic() - start) * 1000)
+        self._audit.log(self.session_id, name, args, msg, False, ms)
+        return ToolResult(raw=None, success=False, error=msg, blocked=blocked)
 
 
-async def _call(handler, arguments: dict) -> Any:
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+async def _call(handler: Callable, arguments: dict) -> Any:
     if inspect.iscoroutinefunction(handler):
         return await handler(**arguments)
-    return handler(**arguments)
+    return await asyncio.to_thread(handler, **arguments)
+
+
+async def _call_maybe_async(fn: Callable, *args, **kwargs) -> Any:
+    if inspect.iscoroutinefunction(fn):
+        return await fn(*args, **kwargs)
+    return fn(*args, **kwargs)

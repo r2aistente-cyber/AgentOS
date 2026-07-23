@@ -1,8 +1,24 @@
-"""Registro central de tools disponibles."""
+"""Registro central de tools.
+
+Cada tool puede declarar un ToolContract con pre/postcondiciones
+verificadas en código por el orchestrator — el LLM nunca es árbitro
+de si una acción funcionó.
+"""
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Callable
+from dataclasses import dataclass, field
+from typing import Any, Callable
+
+
+@dataclass
+class ToolContract:
+    """Contratos de verificación ejecutados por el runtime, no por el LLM.
+
+    precondition(args) → (ok, motivo)   — verificación antes de ejecutar
+    postcondition(args, result) → (ok, motivo) — verificación después de ejecutar
+    """
+    precondition: Callable[[dict], tuple[bool, str]] | None = None
+    postcondition: Callable[[dict, Any], tuple[bool, str]] | None = None
 
 
 @dataclass
@@ -12,8 +28,19 @@ class ToolDef:
     category: str
     parameters: dict          # JSON Schema para el LLM
     handler: Callable
-    dangerous: bool = False        # marcado para auditoría
-    requires_confirm: bool = False # el orchestrator pide confirmación antes de ejecutar
+    dangerous: bool = False
+    requires_confirm: bool = False
+    contract: ToolContract | None = None
+
+
+@dataclass
+class ToolResult:
+    """Resultado verificado de la ejecución de una tool."""
+    raw: Any                        # lo que devolvió el handler
+    success: bool = True            # determinado por el runtime, no el LLM
+    verified: bool = False          # True si se ejecutó una postcondición
+    error: str | None = None        # motivo de fallo si success=False
+    blocked: bool = False           # True si fue bloqueada antes de ejecutar
 
 
 _REGISTRY: dict[str, ToolDef] = {}
