@@ -5,8 +5,10 @@ import logging
 from contextlib import asynccontextmanager
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from hub import config
 from hub.api.agents import manager, router as agents_router
@@ -67,13 +69,39 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="R2 Hub / AgentOS", version="2.0", lifespan=lifespan)
 
-# CORS: en dev abierto; endurecer en Sprint 8 (auth + orígenes restringidos)
+# ── CORS: solo los orígenes locales desde donde corre la UI del Hub ──────────
+_ALLOWED_ORIGINS = [
+    "http://localhost:1420", "http://127.0.0.1:1420",   # Tauri (desktop/)
+    "http://localhost:5500", "http://127.0.0.1:5500",   # frontend/ standalone, pywebview shell
+    "http://localhost:5173", "http://127.0.0.1:5173",   # Vite dev genérico
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+    allow_credentials=False,
 )
+
+# ── Auth opcional por Bearer token ────────────────────────────────────────────
+# Sin `hub.token` en config.yaml, el Hub queda abierto (uso local de un solo
+# usuario, comportamiento de siempre). Configurarlo lo cierra — necesario si
+# se expone más allá de 127.0.0.1.
+_HUB_TOKEN: str | None = config.get("hub.token")
+_PUBLIC_PATHS = {"/", "/docs", "/openapi.json"}
+
+
+class _AuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if not _HUB_TOKEN or request.url.path in _PUBLIC_PATHS or request.method == "OPTIONS":
+            return await call_next(request)
+        auth = request.headers.get("Authorization", "")
+        if not auth.startswith("Bearer ") or auth[7:] != _HUB_TOKEN:
+            return JSONResponse(status_code=401, content={"detail": "Token de autenticación inválido o ausente"})
+        return await call_next(request)
+
+
+app.add_middleware(_AuthMiddleware)
 
 app.include_router(agents_router)
 app.include_router(admin_router)

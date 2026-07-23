@@ -249,16 +249,24 @@ POST http://localhost:{port}/api/v1/chat
 
 ### Checklist
 
-- [ ] Proyecto React + Vite + TypeScript
-- [ ] `Dashboard.tsx` — lista agentes con estado, CPU, RAM
-- [ ] `CreateWizard.tsx` — 5 pasos: nombre+ubicación → personalidad → LLM → tools → resumen
-- [ ] `AgentDetail.tsx` — ver config, acciones start/stop/restart/delete
-- [ ] `ChatView.tsx` — burbujas, input, historial (conecta al proxy del Hub)
-- [ ] `LogsView.tsx` — logs en vivo con tail
-- [ ] `StatusBadge.tsx` — 🟢🔴🟡
-- [ ] Conexiones a API del Hub
-- [ ] Diseño responsive
-- [ ] Estados: loading, empty, error
+> Actualizado 2026-07-23: el checklist estaba sin marcar pese a que el
+> código ya existe en `frontend/src/`. Además hay un `desktop/` (Tauri)
+> con una copia de esta misma UI, pero desactualizada (7 commits vs 26,
+> último cambio 2026-07-18) y nunca conectada al flujo real de arranque
+> (`Iniciar-R2Hub.bat` usa `frontend/` + `desktop_shell.py` con
+> pywebview, no Tauri). Pendiente decidir si se retoma Tauri (y se
+> sincroniza desde `frontend/`) o se retira `desktop/`.
+
+- [x] Proyecto React + Vite + TypeScript
+- [x] `Dashboard.tsx` — lista agentes con estado, CPU, RAM
+- [x] `CreateWizard.tsx` — 5 pasos: nombre+ubicación → personalidad → LLM → tools → resumen
+- [x] `AgentDetail.tsx` — ver config, acciones start/stop/restart/delete
+- [x] `ChatView.tsx` — burbujas, input, historial (conecta al proxy del Hub)
+- [x] `LogsView.tsx` — logs en vivo con tail
+- [x] `StatusBadge.tsx` — 🟢🔴🟡
+- [x] Conexiones a API del Hub
+- [ ] Diseño responsive — sin verificar
+- [ ] Estados: loading, empty, error — sin verificar
 
 ---
 
@@ -399,25 +407,29 @@ Cualquier persona puede instalar R2 Hub en 5 minutos.
 
 ---
 
-## Sprint 8 — Endurecimiento de seguridad (2 días) 🔴
+## Sprint 8 — Endurecimiento de seguridad (2 días) 🔴 (cerrado 2026-07-23)
 
 ### Objetivo
 Los templates copian `security/` de la v1 tal cual (líneas 106-108), heredando bugs reales. Antes de lanzar hay que cerrarlos. Meta: **seguridad pragmática, no cárcel** — configurable por agente, con confirmación solo en lo peligroso.
 
-### Deuda heredada de la v1 (verificada 17 Jul 2026)
-- `exec_command` tiene whitelist que se salta trivialmente: `python -c`, `node -e`, `find -exec`, `npx *` → RCE. La validación de args deja pasar cualquier flag que empiece con `-`.
-- `exec_command` ignora el sandbox: `cat`/`cp`/`mv` leen/escriben fuera de las carpetas permitidas.
-- `requires_confirmation` está declarado en las tools pero el orquestador nunca lo aplica.
-- Nivel 3 fijo + sin auth + `host=0.0.0.0` + CORS `*` → cualquiera en la LAN tiene acceso autónomo.
+### Deuda heredada de la v1 (verificada 17 Jul 2026, re-verificada y cerrada 23 Jul 2026)
+- ~~`exec_command` tiene whitelist que se salta trivialmente: `python -c`, `node -e`, `find -exec`, `npx *` → RCE~~ — resuelto en `exec_tools.py` (whitelist de intérpretes + patrones de bypass).
+- ~~`exec_command` ignora el sandbox: `cat`/`cp`/`mv` leen/escriben fuera de las carpetas permitidas~~ — `cwd` ya se fijaba al sandbox; el 23 Jul se añadió además validación de rutas absolutas/`../` en los argumentos (`_looks_like_path` + `Sandbox.resolve()`). Sigue siendo heurístico por tokens, no un jail real a nivel de SO — ver docstring de `exec_tools.py`.
+- ~~`requires_confirmation` está declarado en las tools pero el orquestador nunca lo aplica~~ — implementado como `requires_confirm` + gate de dos pasos (`get_pending_tool`/`mark_confirmed`) en `tools/orchestrator.py`.
+- Nivel 3 fijo + sin auth + `host=0.0.0.0` + CORS `*`:
+  - Por agente: ya resuelto — bind `127.0.0.1`, bearer token opcional, CORS restringido (`agent_main.py`).
+  - Hub: CORS estaba en `*` sin auth — resuelto el 23 Jul (`hub/main.py`: orígenes restringidos a los puertos de UI conocidos + bearer token opcional vía `hub.token`).
+- Adicional encontrado y cerrado el 23 Jul (no estaba en esta lista): `hub/exporter.py` incluía `llm.api_key` / `search.brave_api_key` / `security.token` en texto plano dentro del `.tar.gz` exportado — cualquiera que recibiera un agente exportado heredaba las credenciales del original. Ahora se sanean antes de empaquetar.
 
 ### Checklist
-- [ ] Rehacer validación de `exec_command` (o quitar `python -c`/`node -e`/`find`/`npx` de la whitelist)
-- [ ] Aplicar sandbox también a `exec_command` (no solo a file_tools)
-- [ ] Implementar el gate de `requires_confirmation` en el orquestador + flujo two-step en `/chat`
-- [ ] Permisos **por agente** (definidos en el wizard) en vez de niveles rígidos globales
-- [ ] Auth por agente + bind `127.0.0.1` + CORS restringido
-- [ ] Tests de seguridad: `rm -rf`/`sudo` fallan, intento de RCE falla, escape de sandbox falla, sin auth se rechaza
-- [ ] Verificar aislamiento: un agente no puede tocar la carpeta de otro
+- [x] Rehacer validación de `exec_command` (whitelist de intérpretes + patrones de bypass)
+- [x] Aplicar sandbox también a `exec_command` (cwd + validación de rutas absolutas en argumentos)
+- [x] Implementar el gate de `requires_confirmation` en el orquestador (two-step vía `mark_confirmed`)
+- [x] Permisos **por agente** (`tools.allow`/`tools.deny` en config.yaml) en vez de niveles rígidos globales
+- [x] Auth por agente + bind `127.0.0.1` + CORS restringido
+- [x] Auth y CORS restringido también a nivel de Hub (no estaba en el checklist original, se añadió y cerró)
+- [x] Tests de seguridad: `tests/s8/test_exec_security.py` (whitelist, bypass, rutas fuera del sandbox) + `tests/test_security.py` (sandbox, permisos, orquestador, gate de confirmación)
+- [ ] Verificar aislamiento: un agente no puede tocar la carpeta de otro — sin test dedicado todavía
 
 ---
 

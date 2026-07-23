@@ -32,6 +32,14 @@ def _classify(cmd: str):
     # Importar solo la función de clasificación, que no depende de agent_config.
     # Usamos importación directa del spec para no ejecutar el register() global.
     import importlib.util
+    # Otras suites (test_sessions.py, test_security.py, ...) insertan y luego
+    # quitan _TEMPLATES de sys.path alrededor de cada test; si esta suite corre
+    # después de que otra lo haya quitado, exec_tools.py no encuentra
+    # "security" al importarse. Nos aseguramos de que esté presente aquí,
+    # justo antes de ejecutar el módulo, en vez de confiar en el bootstrap
+    # de import-time de arriba.
+    if str(_TEMPLATES) not in sys.path:
+        sys.path.insert(0, str(_TEMPLATES))
     spec = importlib.util.spec_from_file_location(
         "_exec_tools_classify",
         _TEMPLATES / "tools" / "base_tools" / "exec_tools.py",
@@ -105,6 +113,30 @@ def test_interpreter_direct_exec_blocked(cmd: str):
 def test_bypass_patterns_blocked(cmd: str):
     result = _classify(cmd)
     assert result is not None, f"Patrón de bypass debería bloquearse: {cmd!r}"
+
+
+# -- Rutas absolutas / "../" en argumentos fuera del sandbox -------------------
+# El sandbox de _classify() cae al fallback AGENT_DIR/data (ver conftest de
+# esta suite): ninguna de estas rutas vive ahí, así que deben bloquearse.
+
+@pytest.mark.parametrize("cmd", [
+    "cat /etc/passwd",
+    "type C:\\Windows\\System32\\config\\SAM",
+    "cat ../../../../etc/shadow",
+    "head ~/.ssh/id_rsa",
+    "cp secreto.txt /tmp/exfil.txt",
+    "grep -r password --config=/etc/app/secrets.yaml",
+])
+def test_path_escape_blocked(cmd: str):
+    result = _classify(cmd)
+    assert result is not None, f"Ruta fuera del sandbox debería bloquearse: {cmd!r}"
+
+
+def test_path_escape_no_afecta_al_binario_mismo():
+    """El propio binario puede venir con ruta absoluta (ej. /usr/bin/git);
+    solo se valida el resto de los argumentos."""
+    result = _classify("/usr/bin/git status")
+    assert result is None, f"No debería bloquear el binario por su propia ruta: {result}"
 
 
 # -- Comandos legítimos que NO deben bloquearse --------------------------------

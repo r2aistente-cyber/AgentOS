@@ -4,8 +4,16 @@ Protecciones:
   - Lista de binarios bloqueados (destructivos, privilegios, exfiltración)
   - Intérpretes solo permitidos sin flags de ejecución directa (-c, -e, /c, -Command)
   - Bloqueo de patrones de encadenamiento peligroso (find -exec, xargs con exec)
+  - Rutas absolutas o "../" en los argumentos que caen fuera del sandbox
+    (ej. `cat /etc/passwd`, `type C:\\Users\\otro\\config.yaml`)
   - Longitud máxima del comando
   - Timeout configurable
+
+Límite conocido: la validación de rutas es heurística (basada en tokens,
+no en un parser de shell completo). No sustituye un jail real a nivel de
+SO — cwd se fija al sandbox, pero un binario que abra archivos por su
+cuenta usando una ruta que no aparece como argumento (o vía variables de
+entorno, symlinks, etc.) no queda cubierto.
 """
 from __future__ import annotations
 
@@ -73,6 +81,21 @@ _BYPASS_PATTERNS: list[tuple[re.Pattern, str]] = [
 
 _MAX_CMD_LEN = 2048
 
+# Token "parece una ruta que podría escapar del cwd": absoluta (Unix o
+# Windows con letra de unidad), home del usuario, o que empieza subiendo
+# de directorio.
+_PATH_LIKE = re.compile(r'^(?:[A-Za-z]:[\\/]|/|~[\\/]?|\.\.[\\/])')
+
+
+def _looks_like_path(token: str) -> str | None:
+    """Extrae el candidato a ruta de un token, o None si no aplica.
+
+    Soporta flags tipo `--config=/etc/foo` mirando también tras el '='.
+    """
+    candidate = token.split("=", 1)[-1] if "=" in token else token
+    candidate = candidate.strip("'\"")
+    return candidate if _PATH_LIKE.match(candidate) else None
+
 
 def _classify(command: str) -> str | None:
     """Devuelve el motivo de bloqueo o None si el comando es aceptable."""
@@ -107,6 +130,19 @@ def _classify(command: str) -> str | None:
     for pattern, reason in _BYPASS_PATTERNS:
         if pattern.search(command):
             return f"patrón peligroso bloqueado: {reason}"
+
+    # Rutas absolutas / "../" en los argumentos (no en el binario, que ya
+    # se valida arriba por nombre) que resuelven fuera del sandbox.
+    for tok in tokens[1:]:
+        candidate = _looks_like_path(tok)
+        if candidate is None:
+            continue
+        try:
+            Sandbox.resolve(candidate)
+        except PermissionError:
+            return f"ruta fuera del sandbox: '{candidate}'"
+        except Exception:
+            pass  # ruta rara pero no evaluable — no es motivo de bloqueo
 
     return None
 

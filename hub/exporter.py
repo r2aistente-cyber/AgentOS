@@ -15,10 +15,41 @@ import tarfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+import yaml
+
 # Directorios / archivos que NO se exportan
 _EXCLUDE_NAMES = {"__pycache__", ".git", "whatsapp"}
 _EXCLUDE_EXTS  = {".pyc", ".pyo"}
 _EXCLUDE_DIRS  = {"logs"}           # logs son locales; se regeneran al arrancar
+
+# Claves de config.yaml que son secretos y NUNCA deben viajar en el paquete
+# exportado — quien reciba el .tar.gz no debería heredar las credenciales
+# del agente original. Se reponen vía variable de entorno o se piden de
+# nuevo al importar.
+_SECRET_KEYS = {"api_key", "token", "brave_api_key"}
+
+
+def _sanitize_config_yaml(raw: bytes) -> bytes:
+    """Quita secretos en texto plano de config.yaml antes de empaquetar."""
+    try:
+        data = yaml.safe_load(raw) or {}
+    except yaml.YAMLError:
+        # Config no parseable: no lo tocamos, pero tampoco lo bloqueamos.
+        return raw
+
+    def _strip(node):
+        if isinstance(node, dict):
+            for key in list(node.keys()):
+                if key in _SECRET_KEYS:
+                    node.pop(key)
+                else:
+                    _strip(node[key])
+        elif isinstance(node, list):
+            for item in node:
+                _strip(item)
+
+    _strip(data)
+    return yaml.safe_dump(data, allow_unicode=True, sort_keys=False).encode("utf-8")
 
 
 def _should_exclude(path: Path, agent_dir: Path) -> bool:
@@ -131,7 +162,11 @@ def export_agent(agent_name: str, agent_dir: Path, description: str = "") -> byt
             rel = item.relative_to(agent_dir)
             arc_name = f"agent/{rel.as_posix()}"
             if item.is_file():
-                tar.add(str(item), arcname=arc_name)
+                if rel == Path("config.yaml"):
+                    sanitized = _sanitize_config_yaml(item.read_bytes())
+                    _add_bytes(tar, arc_name, sanitized)
+                else:
+                    tar.add(str(item), arcname=arc_name)
             elif item.is_dir():
                 info = tarfile.TarInfo(name=arc_name)
                 info.type = tarfile.DIRTYPE
