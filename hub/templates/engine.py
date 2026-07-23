@@ -32,7 +32,8 @@ from tools.registry import ToolResult
 
 log = logging.getLogger(__name__)
 
-MAX_TOOL_ROUNDS = 8
+MAX_TOOL_ROUNDS  = 8
+MAX_TOOL_OUTPUT  = 2000   # chars máximos por tool result en el historial del LLM
 
 
 class _State(Enum):
@@ -43,9 +44,13 @@ class _State(Enum):
 
 
 def _tool_result_content(result: ToolResult, tc_name: str) -> str:
-    """Serializa ToolResult para el mensaje 'tool' que ve el LLM."""
+    """Serializa ToolResult para el mensaje 'tool' que ve el LLM.
+    El output se trunca a MAX_TOOL_OUTPUT para no inflar el contexto.
+    """
     if result.success:
-        raw = result.raw if result.raw is not None else ""
+        raw = str(result.raw) if result.raw is not None else ""
+        if len(raw) > MAX_TOOL_OUTPUT:
+            raw = raw[:MAX_TOOL_OUTPUT] + f"\n... [truncado — {len(raw)} chars total]"
         payload = {"output": raw}
         if result.verified:
             payload["verified"] = True
@@ -57,6 +62,20 @@ def _tool_result_content(result: ToolResult, tc_name: str) -> str:
         if result.blocked:
             payload["blocked"] = True
     return json.dumps(payload, ensure_ascii=False)
+
+
+def _trim_history(history: list[dict], max_msgs: int = 20) -> list[dict]:
+    """Toma los últimos N mensajes y trunca tool results largos en el historial."""
+    msgs = history[-max_msgs:]
+    trimmed = []
+    for m in msgs:
+        if m.get("role") == "tool":
+            content = m.get("content", "")
+            if len(content) > MAX_TOOL_OUTPUT:
+                content = content[:MAX_TOOL_OUTPUT] + " ...[truncado]"
+                m = {**m, "content": content}
+        trimmed.append(m)
+    return trimmed
 
 
 async def process_message(
@@ -81,7 +100,7 @@ async def process_message(
             return await _resume_after_confirm(session_id, model_ref, confirmed_tc)
 
     # ── Flujo normal ──────────────────────────────────────────────────────────
-    history = (await session_store.get_history(session_id))[-20:]
+    history = _trim_history(await session_store.get_history(session_id))
     await session_store.add_message(session_id, "user", message)
 
     system   = build_system_prompt()
@@ -95,7 +114,7 @@ async def _resume_after_confirm(
     confirmed_tc,
 ) -> dict:
     """Re-ejecuta la ToolCall confirmada y continúa el loop desde ese punto."""
-    history  = (await session_store.get_history(session_id))[-20:]
+    history  = _trim_history(await session_store.get_history(session_id))
     system   = build_system_prompt()
     messages = list(history)
 
