@@ -48,9 +48,15 @@ class _State(Enum):
 
 def _ensure_rag_indexed() -> None:
     global _rag_ready
-    if not _rag_ready and rag_indexer.has_knowledge():
-        rag_indexer.index()
-        _rag_ready = True
+    if _rag_ready:
+        return
+    try:
+        if rag_indexer.has_knowledge():
+            rag_indexer.index()
+            _rag_ready = True
+    except Exception as e:
+        log.warning("RAG no disponible (chromadb no instalado?): %s", e)
+        _rag_ready = True  # no reintentar
 
 
 def _tool_result_content(result: ToolResult, tc_name: str) -> str:
@@ -72,6 +78,8 @@ def _tool_result_content(result: ToolResult, tc_name: str) -> str:
 
 
 async def _get_rag_context(message: str) -> str:
+    if not _rag_ready:
+        return ""
     try:
         return await asyncio.to_thread(rag_retriever.retrieve, message)
     except Exception:
