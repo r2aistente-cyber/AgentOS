@@ -168,8 +168,8 @@ async def test_engine_tool_denegada_retorna_error(db, template_env):
     tc = ToolCall(id="1", name="exec_command", arguments={"command": "ls"})
     result = await orch.execute(tc)
 
-    assert result["success"] is False
-    assert "no permitida" in result["error"]
+    assert result.success is False
+    assert "no está en la lista de tools permitidas" in result.error
 
 
 # ─── PermissionEnforcer: tool inexistente ─────────────────────────────────────
@@ -184,8 +184,8 @@ async def test_engine_tool_inexistente_retorna_error(db):
     tc = ToolCall(id="x", name="tool_que_no_existe", arguments={})
     result = await orch.execute(tc)
 
-    assert result["success"] is False
-    assert "no existe" in result["error"]
+    assert result.success is False
+    assert "no existe" in result.error
 
 
 # ─── Gate de confirmación: requires_confirm=True ──────────────────────────────
@@ -212,13 +212,13 @@ async def test_gate_confirmacion_bloquea_sin_confirmar(db, template_env):
     tc = ToolCall(id="2", name="exec_command", arguments={"command": "ls"})
     result = await orch.execute(tc)
 
-    assert result.get("pending_confirmation") is True
-    assert result["success"] is False
+    assert result.blocked is True
+    assert result.success is False
 
 
 @pytest.mark.asyncio
 async def test_gate_confirmacion_ejecuta_tras_confirmar(db, template_env):
-    """Después de mark_confirmed, la tool se ejecuta."""
+    """Tras mark_confirmed(session_id) sobre la ToolCall pendiente, se ejecuta."""
     template_env["cfg"]["security"]["level"] = 2
 
     import sys
@@ -226,18 +226,24 @@ async def test_gate_confirmacion_ejecuta_tras_confirmar(db, template_env):
 
     from llm.adapter import ToolCall
     from tools.orchestrator import ToolOrchestrator, mark_confirmed
-    from tools import registry
-
-    mark_confirmed("sess-confirmed", "exec_command")
 
     orch = ToolOrchestrator(session_id="sess-confirmed")
     tc = ToolCall(id="3", name="exec_command", arguments={"command": "echo ok"})
-    result = await orch.execute(tc)
+
+    # Primer intento: queda pendiente de confirmación.
+    first = await orch.execute(tc)
+    assert first.blocked is True
+
+    # mark_confirmed retorna la ToolCall completa lista para reinyectar.
+    confirmed_tc = mark_confirmed("sess-confirmed")
+    assert confirmed_tc is not None
+
+    result = await orch.execute(confirmed_tc)
 
     # exec_command usa asyncio.create_subprocess_shell — en el sandbox de test
-    # puede no estar disponible; lo importante es que NO retorna pending_confirmation
-    assert not result.get("pending_confirmation"), (
-        "Con confirmación activa, no debe quedar en pending"
+    # puede no estar disponible; lo importante es que NO vuelve a bloquear.
+    assert result.blocked is not True, (
+        "Con confirmación activa, no debe volver a quedar pendiente"
     )
 
 
@@ -252,19 +258,20 @@ async def test_gate_confirmacion_token_de_un_solo_uso(db, template_env):
     from llm.adapter import ToolCall
     from tools.orchestrator import ToolOrchestrator, mark_confirmed
 
-    mark_confirmed("sess-onetime", "exec_command")
-
     orch = ToolOrchestrator(session_id="sess-onetime")
     tc = ToolCall(id="4", name="exec_command", arguments={"command": "echo ok"})
 
-    # Primera ejecución: usa el token y lo consume
+    # Primer intento: queda pendiente.
     await orch.execute(tc)
+    confirmed_tc = mark_confirmed("sess-onetime")
+    assert confirmed_tc is not None
 
-    # Segunda ejecución sin volver a confirmar: debe bloquearse de nuevo
+    # Primera ejecución confirmada: consume el token.
+    await orch.execute(confirmed_tc)
+
+    # Segunda ejecución sin volver a confirmar: debe bloquearse de nuevo.
     result2 = await orch.execute(tc)
-    assert result2.get("pending_confirmation") is True, (
-        "El token debe ser de un solo uso"
-    )
+    assert result2.blocked is True, "El token debe ser de un solo uso"
 
 
 # ─── is_confirmation_message en el flujo del engine ──────────────────────────

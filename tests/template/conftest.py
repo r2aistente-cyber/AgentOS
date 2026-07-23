@@ -1,79 +1,39 @@
 """Conftest para tests de hub/templates.
 
-Provee la fixture `template_env` que:
-  - Añade hub/templates/ al sys.path
-  - Inyecta un agent_config falso apuntando a un directorio temporal
-  - Inicializa la BD SQLite del agente en ese directorio
-  - Limpia sys.modules al finalizar para no contaminar otras suites
+Provee la fixture `template_env` que expone un agent_config falso y
+hub/templates en sys.path (ver tests/_template_support.py) más una BD
+SQLite inicializada en un directorio temporal.
 """
 from __future__ import annotations
 
 import sys
-import types
 from pathlib import Path
 
 import pytest
 import pytest_asyncio
 
-_TEMPLATES = Path(__file__).resolve().parent.parent.parent / "hub" / "templates"
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _template_support import (  # noqa: E402
+    default_config,
+    install_agent_config,
+    cleanup_template_modules,
+)
 
 
 @pytest.fixture(autouse=True)
 def template_env(tmp_path):
     """Entorno aislado de agente para cualquier test en este directorio."""
-    data_dir = tmp_path / "data"
-    data_dir.mkdir()
-
-    _cfg = {
-        "agent": {
-            "name": "template-test-agent",
-            "port": 9998,
-            "install_path": str(tmp_path),
-        },
-        "llm": {"provider": "mock", "model": "test-model", "num_ctx": 8192},
-        "tools": {"allow": ["*"], "deny": []},
-        "security": {
-            "sandbox_paths": [str(data_dir)],
-            "level": 1,
-        },
-        "memory": {},
-    }
-
-    def _get(key, default=None):
-        node = _cfg
-        for part in key.split("."):
-            if not isinstance(node, dict) or part not in node:
-                return default
-            node = node[part]
-        return node
-
-    mod = types.ModuleType("agent_config")
-    mod.get = _get
-    mod.get_secret = lambda _: None
-    mod.AGENT_DIR = tmp_path
-    mod.reload = lambda: None
-    sys.modules["agent_config"] = mod
-
-    if str(_TEMPLATES) not in sys.path:
-        sys.path.insert(0, str(_TEMPLATES))
+    cfg = default_config(tmp_path)
+    mod = install_agent_config(tmp_path, cfg)
 
     yield {
         "agent_dir": tmp_path,
-        "data_dir": data_dir,
-        "cfg": _cfg,
+        "data_dir": tmp_path / "data",
+        "cfg": cfg,
         "mod": mod,
     }
 
-    sys.modules.pop("agent_config", None)
-    for key in list(sys.modules):
-        if key.startswith(("llm.", "tools.", "security.", "memory.", "rag.", "engine")):
-            sys.modules.pop(key, None)
-    for pkg in ("llm", "tools", "security", "memory", "rag", "engine"):
-        mod_obj = sys.modules.get(pkg)
-        if mod_obj is not None and not getattr(mod_obj, "__file__", None):
-            sys.modules.pop(pkg, None)
-    if str(_TEMPLATES) in sys.path:
-        sys.path.remove(str(_TEMPLATES))
+    cleanup_template_modules()
 
 
 @pytest_asyncio.fixture

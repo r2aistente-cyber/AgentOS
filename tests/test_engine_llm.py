@@ -2,51 +2,29 @@
 from __future__ import annotations
 
 import sys
-import types
 from pathlib import Path
 
 import pytest
 
-# Directorio de las plantillas (copiadas a cada agente en tiempo de ejecución)
-_TEMPLATES = Path(__file__).resolve().parent.parent / "hub" / "templates"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _template_support import (  # noqa: E402
+    TEMPLATES_DIR as _TEMPLATES,
+    default_config,
+    install_agent_config,
+    cleanup_template_modules,
+)
 
 
 @pytest.fixture(autouse=True)
 def mock_agent_config(tmp_path):
     """Inyecta agent_config falso y agrega el dir de templates al path."""
-    _cfg = {
-        "agent": {"name": "test-agent", "port": 9999, "install_path": str(tmp_path)},
-        "llm": {"provider": "mock", "model": "test-model", "temperature": 0.7, "max_tokens": 512},
-        "tools": {"allow": ["*"], "deny": []},
-        "security": {"sandbox_paths": [str(tmp_path / "data")]},
-        "memory": {},
-    }
-
-    def _get(key, default=None):
-        node = _cfg
-        for part in key.split("."):
-            if not isinstance(node, dict) or part not in node:
-                return default
-            node = node[part]
-        return node
-
-    mod = types.ModuleType("agent_config")
-    mod.get = _get
-    mod.get_secret = lambda _key: None
-    sys.modules["agent_config"] = mod
-
-    if str(_TEMPLATES) not in sys.path:
-        sys.path.insert(0, str(_TEMPLATES))
+    cfg = default_config(tmp_path)
+    cfg["llm"].update({"temperature": 0.7, "max_tokens": 512})
+    mod = install_agent_config(tmp_path, cfg)
 
     yield mod
 
-    sys.modules.pop("agent_config", None)
-    # Limpiar módulos del engine para evitar contaminación entre tests
-    for key in list(sys.modules):
-        if key.startswith(("llm.", "tools.", "security.", "memory.")):
-            sys.modules.pop(key, None)
-    if str(_TEMPLATES) in sys.path:
-        sys.path.remove(str(_TEMPLATES))
+    cleanup_template_modules()
 
 
 # ── MockAdapter ──────────────────────────────────────────────────────────────
