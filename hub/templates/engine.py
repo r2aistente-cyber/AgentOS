@@ -113,28 +113,48 @@ async def _resume_after_confirm(
     model_ref: str | None,
     confirmed_tc,
 ) -> dict:
-    """Re-ejecuta la ToolCall confirmada y continúa el loop desde ese punto."""
-    history  = _trim_history(await session_store.get_history(session_id))
-    system   = build_system_prompt()
-    messages = list(history)
+    """Re-ejecuta la ToolCall confirmada y entrega el resultado al LLM en contexto limpio.
 
+    No inyectamos un mensaje role:tool huérfano (sin tool_calls precedente)
+    porque eso causa 400 en la mayoría de proveedores. En su lugar armamos un
+    mensaje user que le cuenta al LLM qué pasó para que responda al usuario.
+    """
+    history      = _trim_history(await session_store.get_history(session_id))
+    system       = build_system_prompt()
     orchestrator = ToolOrchestrator(session_id)
-    result = await orchestrator.execute(confirmed_tc)
-
-    messages.append({
-        "role": "tool",
-        "tool_call_id": confirmed_tc.id,
-        "name": confirmed_tc.name,
-        "content": _tool_result_content(result, confirmed_tc.name),
-    })
+    result       = await orchestrator.execute(confirmed_tc)
+    used         = [confirmed_tc.name]
 
     if not result.success:
-        reply = await _force_error_report(messages, system, model_ref, [confirmed_tc.name])
-        await session_store.add_message(session_id, "assistant", reply, [confirmed_tc.name], 0)
-        return _make_response(session_id, reply, [confirmed_tc.name], 0, 0)
+        # Falló — contexto limpio, le pedimos al LLM que reporte el error
+        messages = list(history) + [{
+            "role": "user",
+            "content": (
+                f"La herramienta '{confirmed_tc.name}' falló con el siguiente error:\n"
+                f"{result.error}\n\n"
+                "Reporta este error exactamente al usuario."
+            ),
+        }]
+        reply = await _call_llm_text(messages, system, model_ref)
+        await session_store.add_message(session_id, "assistant", reply, used, 0)
+        return _make_response(session_id, reply, used, 0, 0)
 
-    return await _run_fsm(session_id, messages, system, model_ref,
-                          tools_used=[confirmed_tc.name])
+    # Éxito — le contamos el resultado al LLM en texto, sin role:tool huérfano
+    raw_output = str(result.raw or "")
+    if len(raw_output) > MAX_TOOL_OUTPUT:
+        raw_output = raw_output[:MAX_TOOL_OUTPUT] + f"\n...[truncado, {len(str(result.raw))} chars total]"
+
+    messages = list(history) + [{
+        "role": "user",
+        "content": (
+            f"La herramienta '{confirmed_tc.name}' se ejecutó con éxito. Resultado:\n\n"
+            f"{raw_output}\n\n"
+            "Informa al usuario del resultado de forma clara y concisa."
+        ),
+    }]
+    reply = await _call_llm_text(messages, system, model_ref)
+    await session_store.add_message(session_id, "assistant", reply, used, 0)
+    return _make_response(session_id, reply, used, 0, 0)
 
 
 async def _run_fsm(
@@ -260,6 +280,17 @@ async def _run_fsm(
         response.output_tokens if response else 0,
         response.input_tokens if response else 0,
     )
+
+
+async def _call_llm_text(messages: list[dict], system: str, model_ref: str | None) -> str:
+    """Llama al LLM sin tools y retorna el texto. Sin posibilidad de loops."""
+    try:
+        adapter = build_adapter(model_ref)
+        r = await adapter.chat(messages, tools=None, system=system)
+        return r.content or ""
+    except Exception as exc:
+        log.error("LLM text call error: %s", exc)
+        return f"⚠️ Error al contactar el LLM: {exc}"
 
 
 async def _force_error_report(
