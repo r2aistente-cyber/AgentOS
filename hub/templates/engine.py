@@ -32,7 +32,7 @@ from tools.registry import ToolResult
 
 log = logging.getLogger(__name__)
 
-MAX_TOOL_ROUNDS  = 8
+MAX_TOOL_ROUNDS  = int(config.get("engine.max_tool_rounds", 8))
 MAX_TOOL_OUTPUT  = 2000   # chars máximos por tool result en el historial del LLM
 
 
@@ -50,7 +50,11 @@ def _tool_result_content(result: ToolResult, tc_name: str) -> str:
     if result.success:
         raw = str(result.raw) if result.raw is not None else ""
         if len(raw) > MAX_TOOL_OUTPUT:
-            raw = raw[:MAX_TOOL_OUTPUT] + f"\n... [truncado — {len(raw)} chars total]"
+            hint = (
+                " Usá start_line/end_line para pedir un rango específico en vez de releer todo."
+                if tc_name == "read_file" else ""
+            )
+            raw = raw[:MAX_TOOL_OUTPUT] + f"\n... [truncado — {len(raw)} chars total.{hint}]"
         payload = {"output": raw}
         if result.verified:
             payload["verified"] = True

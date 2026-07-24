@@ -89,6 +89,17 @@ def test_max_tool_rounds_tiene_un_limite_razonable():
     )
 
 
+def test_max_tool_rounds_configurable_por_agente(_template_env):
+    """engine.max_tool_rounds en config.yaml debe poder subir el límite por
+    agente — tareas que leen/comparan varios archivos largos lo necesitan."""
+    import importlib
+    import engine
+
+    _template_env._cfg["engine"] = {"max_tool_rounds": 20}
+    importlib.reload(engine)
+    assert engine.MAX_TOOL_ROUNDS == 20
+
+
 # ─── Fix: engine para el loop tras agotar rounds ──────────────────────────────
 
 @pytest.mark.asyncio

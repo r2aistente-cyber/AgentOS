@@ -7,8 +7,25 @@ from security.sandbox import Sandbox
 from tools.registry import ToolContract, ToolDef, register
 
 
-def read_file(path: str) -> str:
-    return Sandbox.resolve(path).read_text(encoding="utf-8", errors="replace")
+def read_file(path: str, start_line: int | None = None, end_line: int | None = None) -> str:
+    """Lee un archivo entero, o un rango de líneas si se pasan start_line/end_line
+    (1-indexado, inclusive). El resultado igual se trunca a MAX_TOOL_OUTPUT en el
+    historial del LLM (engine.py) — el rango es lo que deja pedir la parte que
+    falta sin releer el archivo completo de nuevo.
+    """
+    text = Sandbox.resolve(path).read_text(encoding="utf-8", errors="replace")
+    if start_line is None and end_line is None:
+        return text
+
+    lines = text.splitlines()
+    total = len(lines)
+    start = max(1, start_line or 1)
+    end = min(total, end_line or total)
+    if start > total:
+        return f"(el archivo tiene {total} líneas; start_line={start_line} está fuera de rango)"
+
+    chunk = "\n".join(lines[start - 1:end])
+    return f"[líneas {start}-{end} de {total}]\n{chunk}"
 
 
 def write_file(path: str, content: str) -> str:
@@ -65,11 +82,19 @@ def _post_write(args: dict, result: str) -> tuple[bool, str]:
 
 register(ToolDef(
     name="read_file",
-    description="Lee el contenido de un archivo del sandbox.",
+    description=(
+        "Lee el contenido de un archivo del sandbox. El resultado se trunca a "
+        "2000 caracteres — para archivos más largos, usá start_line/end_line "
+        "para pedir el rango que falta en vez de reintentar sin ellos."
+    ),
     category="file",
     parameters={
         "type": "object",
-        "properties": {"path": {"type": "string", "description": "Ruta del archivo"}},
+        "properties": {
+            "path": {"type": "string", "description": "Ruta del archivo"},
+            "start_line": {"type": "integer", "description": "Primera línea a devolver (1-indexado, opcional)"},
+            "end_line": {"type": "integer", "description": "Última línea a devolver, inclusive (opcional)"},
+        },
         "required": ["path"],
     },
     handler=read_file,
