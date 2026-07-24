@@ -5,7 +5,11 @@ Estados: THINKING → EXECUTING → (loop) → RESPONDING
 
 Principios clave:
   - El runtime controla el loop (no el LLM).
-  - `break` en Python cuando las tools fallan; NO se inyectan prompts de "detente".
+  - Un fallo de tool no corta la conversación de una: el error queda en el
+    historial y el modelo tiene hasta MAX_CONSECUTIVE_FAILURES rondas
+    seguidas para corregirse solo antes de que el runtime se rinda y fuerce
+    el reporte de error — evita cortar por errores triviales (parámetro
+    inventado, typo) sin dejar que el modelo mienta indefinidamente.
   - Confirmaciones re-ejecutan la ToolCall preservada (no piden al LLM que recuerde).
   - ToolResult.success lo determina el código, nunca el modelo.
   - Máximo MAX_TOOL_ROUNDS para evitar loops infinitos.
@@ -34,6 +38,13 @@ log = logging.getLogger(__name__)
 
 MAX_TOOL_ROUNDS  = int(config.get("engine.max_tool_rounds", 8))
 MAX_TOOL_OUTPUT  = 2000   # chars máximos por tool result en el historial del LLM
+
+# Fallos de tool seguidos (sin ningún éxito entremedio) antes de rendirse y
+# forzar el reporte de error. El error ya queda en el historial como mensaje
+# role:tool antes de decidir esto — con 1 solo fallo el modelo casi siempre
+# se corrige solo en la ronda siguiente (parámetro inventado, typo, etc.);
+# más allá de este límite, insistir es señal de que está atascado de verdad.
+MAX_CONSECUTIVE_FAILURES = int(config.get("engine.max_consecutive_failures", 2))
 
 
 class _State(Enum):
@@ -180,8 +191,10 @@ async def _run_fsm(
     error_msg    = None
     state        = _State.THINKING
 
+    consecutive_failures = 0
+
     try:
-        for _ in range(MAX_TOOL_ROUNDS):
+        for round_idx in range(MAX_TOOL_ROUNDS):
             # ── THINKING ─────────────────────────────────────────────────────
             state    = _State.THINKING
             response = await adapter.chat(messages, tools=llm_tools or None, system=system)
@@ -251,9 +264,19 @@ async def _run_fsm(
                 break
 
             if any_failed:
+                consecutive_failures += 1
+                is_last_round = round_idx == MAX_TOOL_ROUNDS - 1
+                if consecutive_failures < MAX_CONSECUTIVE_FAILURES and not is_last_round:
+                    # El error ya quedó en messages como mensaje role:tool.
+                    # Volvemos a THINKING para que el modelo lo vea y se
+                    # corrija — el runtime sigue sin creerle "éxito" al
+                    # modelo (eso no cambió), solo deja de cortar la
+                    # conversación entera por un error potencialmente trivial.
+                    continue
                 reply = await _force_error_report(messages, system, model_ref, failed_names)
                 await session_store.add_message(session_id, "assistant", reply, used, 0)
                 return _make_response(session_id, reply, used, 0, 0)
+            consecutive_failures = 0
 
         # ── RESPONDING ───────────────────────────────────────────────────────
         if response and response.has_tool_calls and state != _State.RESPONDING:

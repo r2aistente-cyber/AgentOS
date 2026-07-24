@@ -142,6 +142,130 @@ async def test_engine_pide_resumen_al_agotar_tool_rounds(mock_session):
     assert call_count > 5
 
 
+# ─── Mejora: el motor deja reintentar tras un fallo de tool ──────────────────
+#
+# read_file con un path inexistente dispara la precondición _pre_read →
+# success=False, blocked=False (fallo "real", no el blocked=True de una tool
+# que no existe / no está permitida / requiere confirmación — esos son un
+# camino distinto y no deben confundirse con el fallo que estas pruebas
+# ejercitan).
+
+_FAIL_TOOL_CALL = {"name": "read_file", "arguments": {"path": "no_existe.txt"}}
+_OK_TOOL_CALL   = {"name": "list_files", "arguments": {}}
+
+
+async def test_engine_reintenta_tras_fallo_y_se_corrige(mock_session):
+    """Antes: cualquier fallo de tool cortaba la conversación entera vía
+    _force_error_report, sin darle al modelo la chance de corregirse (visto
+    en producción: un parámetro inventado tumbaba toda la respuesta).
+    Ahora: el error queda en el historial y el modelo puede reintentar en
+    la ronda siguiente."""
+    from llm.adapter import LLMResponse, ToolCall
+
+    call_count = 0
+
+    async def mock_chat(messages, tools=None, system=None):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return LLMResponse(
+                content="",
+                tool_calls=[ToolCall(id="tc1", **_FAIL_TOOL_CALL)],
+                output_tokens=5,
+            )
+        if call_count == 2:
+            return LLMResponse(
+                content="",
+                tool_calls=[ToolCall(id="tc2", **_OK_TOOL_CALL)],
+                output_tokens=5,
+            )
+        return LLMResponse(content="Listo, encontré los archivos.", output_tokens=5)
+
+    mock_adapter = MagicMock()
+    mock_adapter.chat = mock_chat
+
+    with patch("llm.factory.build_adapter_with_fallback", return_value=mock_adapter), \
+         patch("rag.indexer.has_knowledge", return_value=False), \
+         patch("rag.retriever.retrieve", return_value=""):
+        from engine import process_message
+        result = await process_message("lista archivos", session_id=None)
+
+    assert result["reply"] == "Listo, encontré los archivos."
+    assert call_count == 3  # falla, reintenta y acierta, responde en texto
+
+
+async def test_engine_fallos_no_consecutivos_no_se_acumulan(mock_session):
+    """Un éxito entremedio resetea el contador — solo importan los fallos
+    SEGUIDOS, no el total a lo largo de la conversación."""
+    from llm.adapter import LLMResponse, ToolCall
+
+    call_count = 0
+    pattern = ["fail", "ok", "fail", "ok", "final"]  # nunca 2 fallos seguidos
+
+    async def mock_chat(messages, tools=None, system=None):
+        nonlocal call_count
+        step = pattern[min(call_count, len(pattern) - 1)]
+        call_count += 1
+        if step == "fail":
+            return LLMResponse(
+                content="", tool_calls=[ToolCall(id=f"f{call_count}", **_FAIL_TOOL_CALL)],
+                output_tokens=5,
+            )
+        if step == "ok":
+            return LLMResponse(
+                content="", tool_calls=[ToolCall(id=f"o{call_count}", **_OK_TOOL_CALL)],
+                output_tokens=5,
+            )
+        return LLMResponse(content="Terminé sin rendirme.", output_tokens=5)
+
+    mock_adapter = MagicMock()
+    mock_adapter.chat = mock_chat
+
+    with patch("llm.factory.build_adapter_with_fallback", return_value=mock_adapter), \
+         patch("rag.indexer.has_knowledge", return_value=False), \
+         patch("rag.retriever.retrieve", return_value=""):
+        from engine import process_message
+        result = await process_message("alterná éxitos y fallos", session_id=None)
+
+    assert result["reply"] == "Terminé sin rendirme."
+
+
+async def test_engine_se_rinde_tras_fallos_consecutivos(mock_session):
+    """Si la tool falla varias rondas SEGUIDAS sin ningún éxito entremedio,
+    el motor se rinde antes de agotar MAX_TOOL_ROUNDS — no insiste para
+    siempre."""
+    from llm.adapter import LLMResponse, ToolCall
+
+    call_count = 0
+
+    async def mock_chat(messages, tools=None, system=None):
+        nonlocal call_count
+        call_count += 1
+        last = next((m for m in reversed(messages) if m.get("role") == "user"), None)
+        if last and "fallaron" in last.get("content", ""):
+            return LLMResponse(content="Las tools fallaron, no pude completar.", output_tokens=5)
+        return LLMResponse(
+            content="",
+            tool_calls=[ToolCall(id=f"tc{call_count}", **_FAIL_TOOL_CALL)],
+            output_tokens=5,
+        )
+
+    mock_adapter = MagicMock()
+    mock_adapter.chat = mock_chat
+
+    with patch("llm.factory.build_adapter_with_fallback", return_value=mock_adapter), \
+         patch("rag.indexer.has_knowledge", return_value=False), \
+         patch("rag.retriever.retrieve", return_value=""):
+        import engine
+        result = await engine.process_message("intenta algo que siempre falla", session_id=None)
+
+    assert result["reply"] == "Las tools fallaron, no pude completar."
+    # MAX_CONSECUTIVE_FAILURES rondas fallidas + 1 llamada de _force_error_report,
+    # bien por debajo de MAX_TOOL_ROUNDS (8 por default) — se rinde temprano.
+    assert call_count == engine.MAX_CONSECUTIVE_FAILURES + 1
+    assert call_count < engine.MAX_TOOL_ROUNDS
+
+
 # ─── Fix: engine captura error del LLM sin crashear ───────────────────────────
 
 @pytest.mark.asyncio
