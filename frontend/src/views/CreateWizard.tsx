@@ -160,6 +160,7 @@ interface Form {
   tone: string
   formality: string
   humor: string
+  empathy: string
   system_prompt: string
   provider: string
   model: string
@@ -186,6 +187,7 @@ const DEFAULT: Form = {
   tone: 'directo',
   formality: 'tu',
   humor: 'poco',
+  empathy: 'neutral',
   system_prompt: 'Eres un asistente útil.',
   provider: 'ollama',
   model: 'qwen2.5:latest',
@@ -282,7 +284,7 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
     setError(null)
     const config: AgentConfig = {
       agent: { name: f.name, description: f.description },
-      personality: { tone: f.tone, formality: f.formality, humor: f.humor },
+      personality: { tone: f.tone, formality: f.formality, humor: f.humor, empathy: f.empathy },
       system_prompt: f.system_prompt,
       llm: {
         provider: f.provider,
@@ -425,7 +427,7 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
         {/* Paso 2: Personalidad */}
         {step === 1 && (
           <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-4 gap-3">
               <Field label="Tono">
                 <select className={inputCls} value={f.tone} onChange={(e) => set('tone', e.target.value)}>
                   {['directo', 'cercano', 'formal', 'entusiasta'].map((o) => (
@@ -442,6 +444,13 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
               <Field label="Humor">
                 <select className={inputCls} value={f.humor} onChange={(e) => set('humor', e.target.value)}>
                   {['nada', 'poco', 'medio', 'mucho'].map((o) => (
+                    <option key={o} value={o}>{o}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Empatía">
+                <select className={inputCls} value={f.empathy} onChange={(e) => set('empathy', e.target.value)}>
+                  {['neutral', 'profesional', 'cercana', 'leal'].map((o) => (
                     <option key={o} value={o}>{o}</option>
                   ))}
                 </select>
@@ -739,7 +748,7 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
                 ['Nombre', f.name],
                 ['Descripción', f.description || '—'],
                 ['Ubicación', f.install_path || 'por defecto'],
-                ['Personalidad', `${f.tone} · ${f.formality} · humor ${f.humor}`],
+                ['Personalidad', `${f.tone} · ${f.formality} · humor ${f.humor} · empatía ${f.empathy}`],
                 ['LLM', `${f.provider} / ${f.model} · temp ${f.temperature}`],
                 ['Tools', f.tools.join(', ') || 'ninguna'],
                 ['Canales', [f.web && 'web', f.whatsapp && 'whatsapp', f.telegram && 'telegram'].filter(Boolean).join(', ') || 'ninguno'],

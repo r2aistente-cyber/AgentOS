@@ -36,9 +36,10 @@ export interface AgentConfig {
     num_ctx?: number
     models?: { provider: string; model: string; label?: string }[]
   }
-  tools?: { allow?: string[] }
+  tools?: { allow?: string[]; deny?: string[] }
   search?: { brave_api_key?: string }
   security?: { level?: number }
+  engine?: { max_tool_rounds?: number; max_consecutive_failures?: number }
   channels?: {
     web?: boolean
     whatsapp?: { enabled?: boolean }
@@ -201,6 +202,14 @@ export const stopAgent = (name: string) =>
 
 export const restartAgent = (name: string) =>
   req<AgentInfo>(`${HUB}/agents/${encodeURIComponent(name)}/restart`, {
+    method: 'POST',
+  })
+
+// Actualiza el código del agente (engine, tools, security, memory...) desde
+// hub/templates/, sin tocar config.yaml ni data/. No reinicia solo — el
+// código nuevo recién aplica después de un restart.
+export const syncAgent = (name: string) =>
+  req<AgentInfo>(`${HUB}/agents/${encodeURIComponent(name)}/sync`, {
     method: 'POST',
   })
 

@@ -8,6 +8,7 @@ import {
   restartAgent,
   startAgent,
   stopAgent,
+  syncAgent,
   updateAgentConfig,
   type AgentConfig,
   type AgentInfo,
@@ -154,6 +155,16 @@ interface Props {
 const inputCls =
   'w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-indigo-500'
 
+const ALL_TOOLS = [
+  'read_file',
+  'write_file',
+  'list_files',
+  'search_web',
+  'read_document',
+  'read_image',
+  'exec_command',
+]
+
 export default function AgentDetail({ agent, onBack, onDeleted, onChanged }: Props) {
   const [config, setConfig] = useState<AgentConfig | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -227,6 +238,26 @@ export default function AgentDetail({ agent, onBack, onDeleted, onChanged }: Pro
     try {
       const result = await exportAgent(agent.name)
       setMsg(`✓ Exportado (${result.size_kb} KB) → ${result.path}`)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const doSync = async () => {
+    if (!confirm(
+      `¿Actualizar el código de "${agent.name}" desde el template?\n\n` +
+      'Sincroniza engine, tools, security, memory, etc. — NO toca config.yaml ' +
+      'ni los archivos del workspace. Si el código de este agente tiene algo ' +
+      'editado a mano, se pierde. Hace falta reiniciar el agente después.'
+    )) return
+    setBusy(true)
+    setError(null)
+    setMsg(null)
+    try {
+      await syncAgent(agent.name)
+      setMsg('✓ Código actualizado desde el template — reiniciá el agente para aplicarlo')
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -351,6 +382,39 @@ export default function AgentDetail({ agent, onBack, onDeleted, onChanged }: Pro
             />
           </label>
 
+          <div>
+            <span className="mb-2 block text-sm font-medium text-slate-300">Tools permitidas</span>
+            <div className="grid grid-cols-2 gap-2">
+              {ALL_TOOLS.map((t) => {
+                const allow = config.tools?.allow ?? []
+                const checked = allow.includes('*') || allow.includes(t)
+                return (
+                  <label
+                    key={t}
+                    className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-sm"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() =>
+                        patch((c) => {
+                          const current = c.tools?.allow ?? []
+                          const next = current.includes(t)
+                            ? current.filter((x) => x !== t)
+                            : [...current.filter((x) => x !== '*'), t]
+                          return { ...c, tools: { ...c.tools, allow: next } }
+                        })
+                      }
+                      className="accent-indigo-500"
+                    />
+                    <span className="font-mono text-slate-300">{t}</span>
+                    {t === 'exec_command' && <span className="ml-auto text-xs text-amber-400">⚠️</span>}
+                  </label>
+                )
+              })}
+            </div>
+          </div>
+
           {(config.tools?.allow ?? []).includes('search_web') && (
             <label className="block">
               <span className="mb-1 block text-sm font-medium text-slate-300">Brave Search API key (opcional)</span>
@@ -373,6 +437,48 @@ export default function AgentDetail({ agent, onBack, onDeleted, onChanged }: Pro
             />
           </label>
 
+          <div>
+            <span className="mb-1 block text-sm font-medium text-slate-300">
+              Motor — límites del loop de tools <span className="font-normal text-slate-500">(avanzado)</span>
+            </span>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className="mb-1 block text-xs text-slate-400">Rondas máx.</span>
+                <input
+                  type="number"
+                  min={1}
+                  className={inputCls}
+                  value={config.engine?.max_tool_rounds ?? ''}
+                  placeholder="8"
+                  onChange={(e) => patch((c) => ({
+                    ...c,
+                    engine: { ...c.engine, max_tool_rounds: e.target.value ? Number(e.target.value) : undefined },
+                  }))}
+                />
+                <span className="mt-1 block text-xs text-slate-500">
+                  Cuántas veces puede llamar tools por mensaje antes de forzar una respuesta. Default: 8.
+                </span>
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs text-slate-400">Fallos seguidos máx.</span>
+                <input
+                  type="number"
+                  min={1}
+                  className={inputCls}
+                  value={config.engine?.max_consecutive_failures ?? ''}
+                  placeholder="2"
+                  onChange={(e) => patch((c) => ({
+                    ...c,
+                    engine: { ...c.engine, max_consecutive_failures: e.target.value ? Number(e.target.value) : undefined },
+                  }))}
+                />
+                <span className="mt-1 block text-xs text-slate-500">
+                  Cuántas veces seguidas puede fallar la misma tool antes de rendirse. Default: 2.
+                </span>
+              </label>
+            </div>
+          </div>
+
           <label className="flex items-center gap-2 text-sm text-slate-300">
             <input
               type="checkbox"
@@ -394,6 +500,9 @@ export default function AgentDetail({ agent, onBack, onDeleted, onChanged }: Pro
               </button>
               <button onClick={doExport} disabled={busy} className="text-sm text-indigo-400 hover:text-indigo-300 disabled:opacity-40">
                 📦 Exportar
+              </button>
+              <button onClick={doSync} disabled={busy} className="text-sm text-amber-400 hover:text-amber-300 disabled:opacity-40">
+                🔄 Sincronizar código
               </button>
               <button onClick={() => importInputRef.current?.click()} disabled={busy} className="text-sm text-slate-400 hover:text-slate-200 disabled:opacity-40">
                 📥 Importar

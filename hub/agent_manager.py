@@ -102,6 +102,24 @@ class AgentManager:
             self._save_registry()
             return info
 
+    def sync_from_template(self, name: str) -> AgentInfo:
+        """Actualiza el código del agente (agent_main, engine, llm/, tools/,
+        security/, memory/, rag/...) desde hub/templates/, SIN tocar
+        config.yaml, data/, logs/ ni memory.db — eso es del usuario.
+
+        Los agentes son copias independientes del template (por diseño, para
+        poder customizarse sin afectarse entre sí); esto es lo que evita que
+        se queden atrás en silencio cuando se arregla algo en el template.
+        Requiere reiniciar el agente para que el código nuevo tome efecto.
+
+        Si alguien llegó a editar a mano el código de este agente puntual,
+        este sync se lo pisa — es una copia directa, no un merge.
+        """
+        with self._lock:
+            info = self._require(name)
+            self._copy_engine_template(Path(info.dir))
+            return info
+
     def delete(self, name: str, archive: bool = True) -> None:
         """Detiene y archiva (o borra) el agente."""
         with self._lock:

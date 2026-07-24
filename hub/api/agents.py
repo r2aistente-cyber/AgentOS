@@ -98,6 +98,17 @@ def restart_agent(name: str) -> dict:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/agents/{name}/sync")
+def sync_agent(name: str) -> dict:
+    """Actualiza el código del agente (engine, tools, security, memory...)
+    desde hub/templates/, sin tocar config.yaml ni data/. Requiere reiniciar
+    el agente después para que el código nuevo tome efecto."""
+    try:
+        return manager.sync_from_template(name).to_dict()
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 @router.get("/agents/{name}/token")
 def get_agent_token(name: str) -> dict:
     """Devuelve el Bearer token del agente para que el frontend lo use en sus requests."""
