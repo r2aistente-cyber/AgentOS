@@ -133,6 +133,15 @@ class ToolOrchestrator:
         # 6. Ejecutar el handler
         try:
             raw = await _call(tool.handler, args)
+        except TypeError as exc:
+            # Argumentos inválidos (nombre inventado, falta uno requerido...).
+            # Devolvemos la firma real (introspección, no el JSON schema que
+            # puede desactualizarse) para que el LLM se corrija con la fuente
+            # de verdad en vez de re-adivinar en la siguiente llamada.
+            msg = f"{exc} — parámetros de '{name}': {_signature_hint(tool.handler)}"
+            ms = int((time.monotonic() - start) * 1000)
+            self._audit.log(sid, name, args, msg, False, ms)
+            return ToolResult(raw=None, success=False, error=msg)
         except Exception as exc:
             ms = int((time.monotonic() - start) * 1000)
             self._audit.log(sid, name, args, str(exc), False, ms)
@@ -171,6 +180,18 @@ class ToolOrchestrator:
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _signature_hint(handler: Callable) -> str:
+    """Lista los parámetros reales de un handler para mensajes de error."""
+    try:
+        params = inspect.signature(handler).parameters.values()
+        return ", ".join(
+            p.name if p.default is inspect.Parameter.empty else f"{p.name}(opcional)"
+            for p in params
+        )
+    except (TypeError, ValueError):
+        return "(no se pudo inspeccionar)"
+
 
 async def _call(handler: Callable, arguments: dict) -> Any:
     if inspect.iscoroutinefunction(handler):

@@ -194,6 +194,29 @@ async def test_orchestrator_tool_exitosa(template_env):
     assert result.raw == "echo:hola"
 
 
+async def test_orchestrator_kwarg_invalido_sugiere_firma_real(template_env):
+    """Si el LLM inventa un parámetro que no existe, el error debe listar los
+    parámetros reales (vía introspección) en vez de solo el TypeError crudo
+    de Python — así el modelo se corrige con la firma real, no con lo que
+    haya dicho en un turno anterior de la misma conversación."""
+    from tools.orchestrator import ToolOrchestrator
+    from tools.registry import register, ToolDef
+    from llm.adapter import ToolCall
+
+    register(ToolDef(
+        name="_test_strict_sig", description="d", category="test",
+        parameters={"type": "object", "properties": {}},
+        handler=lambda path, start_line=None: f"leído: {path}",
+    ))
+    orch = ToolOrchestrator()
+    tc = ToolCall(id="t-badkw", name="_test_strict_sig", arguments={"path": "x", "offset": 5})
+    result = await orch.execute(tc)
+    assert result.success is False
+    assert "unexpected keyword argument" in result.error
+    assert "path" in result.error
+    assert "start_line(opcional)" in result.error
+
+
 async def test_orchestrator_registra_en_audit(db):
     from tools.orchestrator import ToolOrchestrator
     from tools.registry import ToolDef, register

@@ -44,6 +44,32 @@ def test_read_file_end_line_mayor_al_total_se_capea(template_env):
     assert result == "[líneas 1-2 de 2]\nuno\ndos"
 
 
+def test_read_file_con_limit(template_env):
+    from tools.base_tools.file_tools import read_file
+
+    _write(template_env, "f.txt", "\n".join(f"linea{i}" for i in range(1, 11)))  # 10 líneas
+    result = read_file("f.txt", limit=3)
+    assert result == "[líneas 1-3 de 10]\nlinea1\nlinea2\nlinea3"
+
+
+def test_read_file_start_line_mas_limit(template_env):
+    from tools.base_tools.file_tools import read_file
+
+    _write(template_env, "g.txt", "\n".join(f"linea{i}" for i in range(1, 11)))  # 10 líneas
+    result = read_file("g.txt", start_line=4, limit=3)
+    assert result == "[líneas 4-6 de 10]\nlinea4\nlinea5\nlinea6"
+
+
+def test_read_file_parametros_como_string_no_truena(template_env):
+    """Algunos modelos mandan start_line/end_line/limit como string en vez
+    de int — no debe tronar con TypeError, hay que castearlos."""
+    from tools.base_tools.file_tools import read_file
+
+    _write(template_env, "h.txt", "uno\ndos\ntres\ncuatro")
+    result = read_file("h.txt", start_line="2", end_line="3")
+    assert result == "[líneas 2-3 de 4]\ndos\ntres"
+
+
 def test_read_file_start_line_fuera_de_rango(template_env):
     from tools.base_tools.file_tools import read_file
 

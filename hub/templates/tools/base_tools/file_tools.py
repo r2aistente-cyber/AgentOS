@@ -7,20 +7,33 @@ from security.sandbox import Sandbox
 from tools.registry import ToolContract, ToolDef, register
 
 
-def read_file(path: str, start_line: int | None = None, end_line: int | None = None) -> str:
+def read_file(path: str, start_line=None, end_line=None, limit=None) -> str:
     """Lee un archivo entero, o un rango de líneas si se pasan start_line/end_line
-    (1-indexado, inclusive). El resultado igual se trunca a MAX_TOOL_OUTPUT en el
-    historial del LLM (engine.py) — el rango es lo que deja pedir la parte que
-    falta sin releer el archivo completo de nuevo.
+    y/o limit (1-indexado, inclusive). El resultado igual se trunca a
+    MAX_TOOL_OUTPUT en el historial del LLM (engine.py) — el rango es lo que
+    deja pedir la parte que falta sin releer el archivo completo de nuevo.
+
+    Acepta start_line/end_line/limit como int o como string numérico (algunos
+    modelos los mandan como string) — se castean acá en vez de dejar que
+    truene un TypeError más abajo.
     """
     text = Sandbox.resolve(path).read_text(encoding="utf-8", errors="replace")
-    if start_line is None and end_line is None:
+    if start_line is None and end_line is None and limit is None:
         return text
+
+    start_line = int(start_line) if start_line is not None else None
+    end_line = int(end_line) if end_line is not None else None
+    limit = int(limit) if limit is not None else None
 
     lines = text.splitlines()
     total = len(lines)
     start = max(1, start_line or 1)
-    end = min(total, end_line or total)
+    if end_line is not None:
+        end = min(total, end_line)
+    elif limit is not None:
+        end = min(total, start + limit - 1)
+    else:
+        end = total
     if start > total:
         return f"(el archivo tiene {total} líneas; start_line={start_line} está fuera de rango)"
 
@@ -84,16 +97,18 @@ register(ToolDef(
     name="read_file",
     description=(
         "Lee el contenido de un archivo del sandbox. El resultado se trunca a "
-        "2000 caracteres — para archivos más largos, usá start_line/end_line "
-        "para pedir el rango que falta en vez de reintentar sin ellos."
+        "2000 caracteres — para archivos más largos, pedí un rango con "
+        "start_line/end_line, o los primeros N con limit. No existen otros "
+        "parámetros (nada de 'offset')."
     ),
     category="file",
     parameters={
         "type": "object",
         "properties": {
             "path": {"type": "string", "description": "Ruta del archivo"},
-            "start_line": {"type": "integer", "description": "Primera línea a devolver (1-indexado, opcional)"},
+            "start_line": {"type": "integer", "description": "Primera línea a devolver (1-indexado, opcional, default 1)"},
             "end_line": {"type": "integer", "description": "Última línea a devolver, inclusive (opcional)"},
+            "limit": {"type": "integer", "description": "Máximo de líneas a devolver desde start_line (opcional, alternativa a end_line)"},
         },
         "required": ["path"],
     },
