@@ -351,6 +351,19 @@ export default function AgentDetail({ agent, onBack, onDeleted, onChanged }: Pro
             />
           </label>
 
+          {(config.tools?.allow ?? []).includes('search_web') && (
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium text-slate-300">Brave Search API key (opcional)</span>
+              <input
+                type="password"
+                className={inputCls}
+                value={config.search?.brave_api_key ?? ''}
+                onChange={(e) => patch((c) => ({ ...c, search: { ...c.search, brave_api_key: e.target.value } }))}
+                placeholder="Sin key, search_web usa DuckDuckGo gratis"
+              />
+            </label>
+          )}
+
           <label className="block">
             <span className="mb-1 block text-sm font-medium text-slate-300">System prompt</span>
             <textarea

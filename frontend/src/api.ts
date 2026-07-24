@@ -37,6 +37,7 @@ export interface AgentConfig {
     models?: { provider: string; model: string; label?: string }[]
   }
   tools?: { allow?: string[] }
+  search?: { brave_api_key?: string }
   security?: { level?: number }
   channels?: {
     web?: boolean

@@ -169,6 +169,7 @@ interface Form {
   api_key: string
   extra_models: { provider: string; model: string; api_key?: string }[]
   tools: string[]
+  brave_api_key: string
   web: boolean
   whatsapp: boolean
   telegram: boolean
@@ -194,6 +195,7 @@ const DEFAULT: Form = {
   api_key: '',
   extra_models: [],
   tools: ['read_file', 'write_file', 'list_files', 'search_web'],
+  brave_api_key: '',
   web: true,
   whatsapp: false,
   telegram: false,
@@ -303,6 +305,7 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
         ],
       },
       tools: { allow: f.tools },
+      ...(f.brave_api_key.trim() ? { search: { brave_api_key: f.brave_api_key.trim() } } : {}),
       security: { level: f.security_level },
       channels: {
         web: f.web,
@@ -493,7 +496,7 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
               </Field>
             )}
             {needsKey && (
-              <Field label="API key" hint="Se guarda vía get_secret (variable de entorno), no en texto plano.">
+              <Field label="API key" hint="Preferí la variable de entorno del proveedor si podés. Si la ponés acá, queda en el config.yaml del agente (nunca se incluye si lo exportás).">
                 <input
                   type="password"
                   className={inputCls}
@@ -649,6 +652,22 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
                 ))}
               </div>
             </div>
+
+            {f.tools.includes('search_web') && (
+              <Field
+                label="Brave Search API key (opcional)"
+                hint="Sin key, search_web usa DuckDuckGo gratis. Se guarda en el config.yaml del agente — nunca se incluye si lo exportás."
+              >
+                <input
+                  type="password"
+                  className={inputCls}
+                  value={f.brave_api_key}
+                  onChange={(e) => set('brave_api_key', e.target.value)}
+                  placeholder="BSA…"
+                />
+              </Field>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <Field label="Nivel de seguridad">
                 <select
