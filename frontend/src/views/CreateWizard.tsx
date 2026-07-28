@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { createAgent, listProviderModels, type AgentConfig } from '../api'
 import FolderPicker from '../components/FolderPicker'
+import { suggestNumCtx } from '../modelDefaults'
 
 interface Props {
   onDone: () => void
@@ -10,57 +11,6 @@ interface Props {
 const STEPS = ['Identidad', 'Personalidad', 'LLM', 'Tools y canales', 'Resumen']
 
 const PROVIDERS = ['ollama', 'openai', 'anthropic', 'opencode', 'opencode-go', 'claude-cli', 'custom', 'mock']
-
-// num_ctx sugerido por proveedor/modelo. El usuario puede sobreescribir.
-const NUM_CTX_DEFAULTS: Record<string, number> = {
-  // opencode-go
-  'opencode-go/deepseek-v4-pro':  1000000,
-  'opencode-go/deepseek-v4-flash': 1000000,
-  'opencode-go/kimi-k3':          128000,
-  'opencode-go/kimi-k2.7-code':   128000,
-  'opencode-go/kimi-k2.6':        128000,
-  'opencode-go/kimi-k2.5':        128000,
-  'opencode-go/qwen3.7-max':       32000,
-  'opencode-go/qwen3.7-plus':      32000,
-  'opencode-go/qwen3.6-plus':      32000,
-  'opencode-go/qwen3.5-plus':      32000,
-  // opencode
-  'opencode/deepseek-v4-pro':     1000000,
-  'opencode/deepseek-v4-flash':   1000000,
-  'opencode/claude-fable-5':      200000,
-  'opencode/claude-opus-4-8':     200000,
-  'opencode/claude-sonnet-5':     200000,
-  'opencode/claude-sonnet-4-6':   200000,
-  'opencode/claude-haiku-4-5':    200000,
-  'opencode/gpt-5.5':             128000,
-  'opencode/gpt-5.4':             128000,
-  'opencode/gpt-5.4-mini':        128000,
-  'opencode/gpt-5':               128000,
-  // claude-cli (OAuth)
-  'claude-cli/claude-fable-5':    200000,
-  'claude-cli/claude-opus-4-8':   200000,
-  'claude-cli/claude-sonnet-5':   200000,
-  'claude-cli/claude-sonnet-4-6': 200000,
-  'claude-cli/claude-haiku-4-5':  200000,
-  // anthropic (API key de pago)
-  'anthropic/claude-opus-4-8':    200000,
-  'anthropic/claude-sonnet-4-6':  200000,
-  'anthropic/claude-haiku-4-5':   200000,
-  // openai
-  'openai/gpt-4o':                128000,
-  'openai/gpt-4o-mini':           128000,
-  'openai/gpt-4.1':               128000,
-  'openai/o3':                    200000,
-  'openai/o4-mini':               200000,
-}
-
-function suggestNumCtx(provider: string, model: string): number {
-  return (
-    NUM_CTX_DEFAULTS[`${provider}/${model}`] ??
-    ({'anthropic': 200000, 'claude-cli': 200000, 'openai': 128000, 'opencode': 128000, 'opencode-go': 64000}[provider]) ??
-    8192
-  )
-}
 
 // Catálogo estático obtenido de los endpoints reales de cada proveedor.
 // Se funde con el catálogo del Hub; el dinámico (Ollama) prevalece.

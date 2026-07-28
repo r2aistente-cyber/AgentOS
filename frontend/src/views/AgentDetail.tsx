@@ -14,6 +14,7 @@ import {
   type AgentInfo,
 } from '../api'
 import StatusBadge from '../components/StatusBadge'
+import { suggestNumCtx } from '../modelDefaults'
 
 const HUB = '/api/v1/hub'
 
@@ -341,7 +342,13 @@ export default function AgentDetail({ agent, onBack, onDeleted, onChanged }: Pro
               <select
                 className={inputCls}
                 value={config.llm?.provider ?? 'ollama'}
-                onChange={(e) => patch((c) => ({ ...c, llm: { ...c.llm, provider: e.target.value } }))}
+                onChange={(e) => {
+                  const provider = e.target.value
+                  patch((c) => ({
+                    ...c,
+                    llm: { ...c.llm, provider, num_ctx: suggestNumCtx(provider, c.llm?.model ?? '') },
+                  }))
+                }}
               >
                 {['ollama', 'openai', 'anthropic', 'opencode', 'opencode-go', 'custom', 'mock'].map((p) => (
                   <option key={p} value={p}>{p}</option>
@@ -351,7 +358,13 @@ export default function AgentDetail({ agent, onBack, onDeleted, onChanged }: Pro
                 <select
                   className={inputCls}
                   value={config.llm?.model ?? ''}
-                  onChange={(e) => patch((c) => ({ ...c, llm: { ...c.llm, model: e.target.value } }))}
+                  onChange={(e) => {
+                    const model = e.target.value
+                    patch((c) => ({
+                      ...c,
+                      llm: { ...c.llm, model, num_ctx: suggestNumCtx(c.llm?.provider ?? 'ollama', model) },
+                    }))
+                  }}
                 >
                   {availableModels.map((m) => (
                     <option key={m} value={m}>{m}</option>
@@ -361,11 +374,54 @@ export default function AgentDetail({ agent, onBack, onDeleted, onChanged }: Pro
                 <input
                   className={inputCls}
                   value={config.llm?.model ?? ''}
-                  onChange={(e) => patch((c) => ({ ...c, llm: { ...c.llm, model: e.target.value } }))}
+                  onChange={(e) => {
+                    const model = e.target.value
+                    patch((c) => ({
+                      ...c,
+                      llm: { ...c.llm, model, num_ctx: suggestNumCtx(c.llm?.provider ?? 'ollama', model) },
+                    }))
+                  }}
                 />
               )}
             </div>
           </label>
+
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-slate-300">
+              Contexto (num_ctx / tokens)
+            </span>
+            <input
+              type="number"
+              min={1024}
+              className={inputCls}
+              value={config.llm?.num_ctx ?? 8192}
+              onChange={(e) => patch((c) => ({
+                ...c,
+                llm: { ...c.llm, num_ctx: Math.max(1024, Number(e.target.value)) },
+              }))}
+            />
+            <span className="mt-1 block text-xs text-slate-500">
+              Se sugiere automáticamente al cambiar proveedor/modelo — editable si el valor real
+              del modelo es distinto. Determina el límite que muestra la barra de contexto del chat.
+            </span>
+          </label>
+
+          {['openai', 'anthropic', 'opencode', 'opencode-go'].includes(config.llm?.provider ?? '') && (
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium text-slate-300">API key</span>
+              <input
+                type="password"
+                className={inputCls}
+                value={config.llm?.api_key ?? ''}
+                onChange={(e) => patch((c) => ({ ...c, llm: { ...c.llm, api_key: e.target.value } }))}
+                placeholder="sk-…"
+              />
+              <span className="mt-1 block text-xs text-slate-500">
+                Preferí la variable de entorno del proveedor si podés. Si la ponés acá, queda en el
+                config.yaml del agente (nunca se incluye si lo exportás).
+              </span>
+            </label>
+          )}
 
           <label className="block">
             <span className="mb-1 block text-sm font-medium text-slate-300">

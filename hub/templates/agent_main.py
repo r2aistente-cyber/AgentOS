@@ -146,9 +146,22 @@ async def chat(req: ChatRequest) -> dict:
 @app.get("/api/v1/models")
 async def models() -> dict:
     llm = config.get("llm", {}) or {}
-    entries = llm.get("models") or []
-    if not entries:
-        entries = [{"provider": llm.get("provider", "ollama"), "model": llm.get("model", "")}]
+    entries = list(llm.get("models") or [])
+
+    # El primario (llm.provider/model) siempre debe aparecer en la lista que
+    # ve el selector del chat — si `entries` quedó desactualizada (ej. se
+    # cambió provider/model a mano en la página de edición del agente sin
+    # tocar la lista `models`), el selector mostraría opciones que no
+    # incluyen el modelo realmente activo. Se antepone sintetizado si falta.
+    primary_provider = llm.get("provider", "ollama")
+    primary_model = llm.get("model", "")
+    ya_incluido = any(
+        e.get("provider") == primary_provider and e.get("model") == primary_model
+        for e in entries
+    )
+    if not ya_incluido:
+        entries.insert(0, {"provider": primary_provider, "model": primary_model})
+
     out = []
     for e in entries:
         provider = e.get("provider", "ollama")
@@ -160,7 +173,7 @@ async def models() -> dict:
             "model": model,
             "label": e.get("label") or model or ref,
         })
-    default_ref = f"{llm.get('provider', 'ollama')}/{llm.get('model', '')}"
+    default_ref = f"{primary_provider}/{primary_model}"
     return {"models": out, "default": default_ref}
 
 
