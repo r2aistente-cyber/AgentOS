@@ -2,10 +2,24 @@
 
 El paquete incluye:
   - manifest.json        → metadatos del paquete
-  - agent/               → config + engine + tools + knowledge + memory + data
+  - agent/               → config + engine + tools + knowledge + data
   - install.bat / .sh    → scripts de instalación rápida
 
 Al importar, el Hub reasigna puerto y regenera el token de seguridad.
+
+Deliberadamente NO incluye (ver auditoría de huecos, 2026-07-27):
+  - memory.db: historial real de conversaciones del agente origen — no
+    tiene sentido que un agente recién exportado/importado herede
+    conversaciones ajenas (posible PII/datos de clientes reales). Se
+    recrea vacío solo con las tablas (CREATE TABLE IF NOT EXISTS) la
+    primera vez que el agente importado la usa — ver memory/db.py.
+  - security.sandbox_paths: si el agente origen extendía una specialty con
+    rutas personales del dueño original (ej. r2-legal hereda ~/Trantor/,
+    ~/Documents/ de la specialty "core"), esas rutas no tienen sentido en
+    la máquina de destino y no deberían viajar. Se elimina la clave del
+    config exportado — Sandbox cae a su fallback seguro (data/ del propio
+    agente, ver security/sandbox.py:_allowed_dirs) hasta que el nuevo
+    dueño configure las suyas.
 """
 from __future__ import annotations
 
@@ -18,7 +32,7 @@ from pathlib import Path
 import yaml
 
 # Directorios / archivos que NO se exportan
-_EXCLUDE_NAMES = {"__pycache__", ".git", "whatsapp"}
+_EXCLUDE_NAMES = {"__pycache__", ".git", "whatsapp", "memory.db"}
 _EXCLUDE_EXTS  = {".pyc", ".pyo"}
 _EXCLUDE_DIRS  = {"logs"}           # logs son locales; se regeneran al arrancar
 
@@ -28,9 +42,14 @@ _EXCLUDE_DIRS  = {"logs"}           # logs son locales; se regeneran al arrancar
 # nuevo al importar.
 _SECRET_KEYS = {"api_key", "token", "brave_api_key"}
 
+# Claves que no son secretos pero tampoco deben viajar: son específicas del
+# dueño/máquina de origen, no del agente en sí (ver docstring del módulo).
+_OWNER_SPECIFIC_KEYS = {"sandbox_paths"}
+
 
 def _sanitize_config_yaml(raw: bytes) -> bytes:
-    """Quita secretos en texto plano de config.yaml antes de empaquetar."""
+    """Quita secretos y datos específicos del dueño/máquina de origen de
+    config.yaml antes de empaquetar (ver docstring del módulo)."""
     try:
         data = yaml.safe_load(raw) or {}
     except yaml.YAMLError:
@@ -40,7 +59,7 @@ def _sanitize_config_yaml(raw: bytes) -> bytes:
     def _strip(node):
         if isinstance(node, dict):
             for key in list(node.keys()):
-                if key in _SECRET_KEYS:
+                if key in _SECRET_KEYS or key in _OWNER_SPECIFIC_KEYS:
                     node.pop(key)
                 else:
                     _strip(node[key])
@@ -67,17 +86,39 @@ def _should_exclude(path: Path, agent_dir: Path) -> bool:
     return False
 
 
-_REQUIREMENTS = """\
+# hub/requirements.txt (raíz del repo, no este archivo) es la fuente real
+# de qué necesita un agente — antes había una lista aparte hardcodeada acá
+# que se desincronizó de la real (le faltaban aiosqlite, pypdf, python-docx,
+# openpyxl, python-multipart, pydantic — un agente exportado con esa lista
+# vieja fallaba al arrancar por dependencias faltantes). Se lee en vivo en
+# vez de mantener una copia que puede volver a quedar desactualizada.
+_REQUIREMENTS_PATH = Path(__file__).resolve().parent / "requirements.txt"
+
+# Fallback solo por si requirements.txt no existiera en el entorno de
+# ejecución (no debería pasar dentro de este repo).
+_REQUIREMENTS_FALLBACK = """\
 fastapi>=0.115
 uvicorn[standard]>=0.30
 httpx>=0.27
 pyyaml>=6
+aiosqlite>=0.20
+python-multipart>=0.0.9
+pydantic>=2.8
 sentence-transformers>=3
 chromadb>=0.5
 duckduckgo-search>=8
 psutil>=5
 beautifulsoup4>=4
+pypdf>=4.3
+python-docx>=1.1
+openpyxl>=3.1
 """
+
+
+def _read_requirements() -> str:
+    if _REQUIREMENTS_PATH.exists():
+        return _REQUIREMENTS_PATH.read_text(encoding="utf-8")
+    return _REQUIREMENTS_FALLBACK
 
 
 def _make_install_bat() -> str:
@@ -145,7 +186,7 @@ def export_agent(agent_name: str, agent_dir: Path, description: str = "") -> byt
         _add_bytes(tar, "manifest.json", manifest_bytes)
 
         # requirements.txt en la raíz (compartido entre install.bat y install.sh)
-        _add_bytes(tar, "requirements.txt", _REQUIREMENTS.encode("utf-8"))
+        _add_bytes(tar, "requirements.txt", _read_requirements().encode("utf-8"))
 
         # install scripts en la raíz
         _add_bytes(tar, "install.bat", _make_install_bat().encode("utf-8"))
