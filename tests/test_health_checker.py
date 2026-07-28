@@ -13,7 +13,7 @@ from hub.health_checker import HealthChecker
 from hub.models import AgentInfo
 
 
-def _fake_manager(status: str, is_alive: bool = True):
+def _fake_manager(status: str, is_alive: bool = True, has_real_popen: bool = True):
     manager = MagicMock()
     info = AgentInfo(name="agente1", port=9000, dir="/tmp/agente1",
                       install_path="/tmp/agente1", status=status, auto_restart=False)
@@ -22,6 +22,9 @@ def _fake_manager(status: str, is_alive: bool = True):
 
     proc = MagicMock()
     proc.is_alive = is_alive
+    # None si es un AgentProcess "adoptado" (start() detectó el puerto ya
+    # respondiendo, ver AgentManager.start()) — nunca hubo un Popen real acá.
+    proc.process = object() if has_real_popen else None
     proc.pid = 123
     proc.health_url = "http://127.0.0.1:9000/api/v1/health"
     manager.processes = {"agente1": proc}
@@ -69,6 +72,39 @@ async def test_agente_online_que_deja_de_responder_pasa_a_error():
 
     client = AsyncMock()
     client.get.side_effect = httpx.TimeoutException("timeout")
+
+    await checker._check_all(client)
+
+    manager._set_status.assert_called_once_with("agente1", "error")
+
+
+@pytest.mark.asyncio
+async def test_agente_adoptado_sin_popen_real_se_verifica_por_http_no_se_da_por_muerto():
+    """Reproduce el bug real con R2: AgentManager.start() detecta que el
+    puerto ya respondía (proceso de una vida anterior del Hub) y marca
+    'online' sin lanzar un Popen nuevo — proc.is_alive de ese AgentProcess
+    sintético da False SIEMPRE (nunca hubo proceso propio). Sin este
+    fix, el siguiente tick del healthchecker lo mataba de inmediato solo
+    por eso, aunque el proceso real siguiera respondiendo bien."""
+    manager, proc = _fake_manager(status="online", is_alive=False, has_real_popen=False)
+    checker = HealthChecker(manager)
+
+    client = AsyncMock()
+    client.get.return_value = httpx.Response(200, request=httpx.Request("GET", proc.health_url))
+
+    await checker._check_all(client)
+
+    assert manager.agents["agente1"].status == "online"
+    manager._set_status.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_agente_adoptado_que_de_verdad_no_responde_si_pasa_a_error():
+    manager, proc = _fake_manager(status="online", is_alive=False, has_real_popen=False)
+    checker = HealthChecker(manager)
+
+    client = AsyncMock()
+    client.get.side_effect = httpx.ConnectError("no responde")
 
     await checker._check_all(client)
 

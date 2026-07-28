@@ -51,8 +51,17 @@ class HealthChecker:
             if info.status not in ("online", "starting", "error") or proc is None:
                 continue
 
-            # Detección inmediata: si el proceso OS ya murió, actuar sin esperar timeout HTTP
-            if not proc.is_alive:
+            # Detección inmediata: si el proceso OS ya murió, actuar sin esperar
+            # timeout HTTP. OJO: esto solo es confiable si `proc` es un
+            # AgentProcess que este Hub lanzó de verdad (proc.process es un
+            # Popen real). Cuando AgentManager.start() "adopta" un proceso
+            # que ya estaba sirviendo el puerto de una vida anterior del Hub
+            # (ver ese método), el AgentProcess es nuevo y sintético —
+            # proc.process es None y proc.is_alive da False SIEMPRE, aunque
+            # el proceso real siga vivo. Sin este chequeo, el próximo tick
+            # marcaba "error" de inmediato a un agente que se acababa de
+            # recuperar — bug real reproducido con R2 y r2-legal.
+            if proc.process is not None and not proc.is_alive:
                 if info.status != "error":
                     log.warning("Proceso del agente '%s' murió (PID=%s)", info.name, proc.pid)
                     await self._handle_down(info.name, proc)
