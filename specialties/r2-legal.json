@@ -32,41 +32,18 @@
       "read_file",
       "write_file",
       "search_web",
-      "fetch_url"
-    ],
-    "suite_legal": {
-      "base_url": "http://localhost:8000/api/v1",
-      "endpoints": {
-        "correo": {
-          "listar": "GET /correo",
-          "leer": "GET /correo/{id}",
-          "enviar": "POST /correo/enviar",
-          "vincular": "PUT /correo/{id}/vincular"
-        },
-        "procesos": {
-          "listar": "GET /civil/ejecutivos/procesos",
-          "detalle": "GET /civil/ejecutivos/procesos/{id}",
-          "consultar_rama": "POST /consultas/consultar"
-        },
-        "documentos": {
-          "generar": "POST /documentos/generar",
-          "listar": "GET /documentos",
-          "subir": "POST /documentos/upload"
-        },
-        "clientes": {
-          "buscar": "GET /clientes",
-          "detalle": "GET /clientes/{id}"
-        },
-        "calendario": {
-          "citas_hoy": "GET /calendario/citas/hoy/resumen",
-          "agendar": "POST /calendario/citas"
-        },
-        "dashboard": {
-          "resumen": "GET /dashboard"
-        }
-      }
-    }
+      "fetch_url",
+      "guardar_borrador"
+    ]
   },
+  "mcp_servers": [
+    {
+      "name": "suite_legal",
+      "url": "http://localhost:8010/mcp",
+      "api_key": "",
+      "_api_key_nota": "Placeholder deliberado — nunca comitear la key real. Se setea en el config.yaml de la instancia del agente (backend/scripts/crear_agente_ia.py en suite-legal genera el valor real, la MISMA key que usa mcp_gateway/server.py para autenticar y para llamar de vuelta a la API REST). Las tools disponibles (guardar_borrador, y las que se agreguen después) se descubren en vivo vía MCP — ya no hay un catálogo de endpoints copiado a mano acá."
+    }
+  ],
   "sandbox": {
     "paths": [
       "/tmp/suite-legal/",
@@ -75,10 +52,8 @@
     ]
   },
   "knowledge_files": [
-    "constitucion-politica-1991.pdf",
-    "codigo-general-del-proceso.pdf",
-    "codigo-civil.pdf",
-    "codigo-sustantivo-trabajo.pdf",
-    "principios-generales.yaml"
+    "principios-generales.yaml",
+    "laboral/codigo-sustantivo-trabajo.md",
+    "penal/codigo-penal.md"
   ]
 }

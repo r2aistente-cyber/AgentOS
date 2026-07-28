@@ -16,3 +16,5 @@ openpyxl==3.1.5
 # RAG
 chromadb>=0.5.0
 sentence-transformers>=3.0.0
+# Acoplamiento a programas host vía MCP (Model Context Protocol)
+mcp>=1.0.0
