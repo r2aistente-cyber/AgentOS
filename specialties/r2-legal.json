@@ -54,8 +54,11 @@
   "knowledge_files": [
     "principios-generales.yaml",
     "laboral/codigo-sustantivo-trabajo.md",
+    "laboral/codigo-procesal-trabajo.md",
     "penal/codigo-penal.md",
+    "penal/codigo-procedimiento-penal.md",
     "civil/codigo-civil.md",
+    "civil/codigo-general-del-proceso.md",
     "comercial/codigo-comercio.md",
     "administrativo/cpaca.md",
     "familia/codigo-infancia-adolescencia.md",
