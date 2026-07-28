@@ -20,6 +20,16 @@ _SUPPORTED = {".md", ".txt", ".yaml", ".json", ".py", ".html"}
 _CHUNK_SIZE = 400   # tokens aproximados (chars / 4)
 _OVERLAP    = 50
 
+# `all-MiniLM-L6-v2` es un modelo entrenado en inglés — para contenido en
+# español (ej. normativa colombiana de r2-legal) sus embeddings casi no
+# discriminan por tema: verificado a mano, cualquier chunk de un documento
+# en español sale con similitud ~0.8+ sin importar de qué trate, lo que
+# hace la búsqueda semántica poco confiable. `paraphrase-multilingual-
+# MiniLM-L12-v2` sí entiende español razonablemente bien. Configurable por
+# agente vía `rag.embedding_model` — DEBE ser el mismo valor acá y en
+# retriever.py (comparten el mismo espacio de embeddings en la colección).
+_EMBEDDING_MODEL = config.get("rag.embedding_model", "paraphrase-multilingual-MiniLM-L12-v2")
+
 _INDEX_DIR = Path(__file__).resolve().parent.parent / "data" / "rag_index"
 _META_FILE = _INDEX_DIR / "checksums.json"
 
@@ -76,7 +86,7 @@ def _get_model():
     global _model
     if _model is None:
         from sentence_transformers import SentenceTransformer
-        _model = SentenceTransformer("all-MiniLM-L6-v2")
+        _model = SentenceTransformer(_EMBEDDING_MODEL)
     return _model
 
 

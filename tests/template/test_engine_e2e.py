@@ -336,3 +336,42 @@ async def test_engine_funciona_si_rag_lanza_excepcion(db):
         result = await process_message("test rag error", session_id=None)
 
     assert result["reply"] == "Ok a pesar del error de RAG."
+
+
+@pytest.mark.asyncio
+async def test_rag_retrieve_no_bloquea_el_event_loop(db):
+    """retrieve() es síncrono y, la primera vez que un agente con knowledge
+    lo usa, carga el modelo de embeddings (puede tardar decenas de
+    segundos) — debe correr en un thread aparte (asyncio.to_thread), no
+    bloquear el event loop del agente. Si bloqueara, el healthchecker del
+    Hub no podría atender /api/v1/health mientras tanto y marcaría el
+    agente 'error' justo después de la primera respuesta — bug real
+    reproducido y reportado por Xavier."""
+    import asyncio
+    import time
+
+    adapter = _make_adapter("Ok.")
+    tiempos: dict[str, float] = {}
+
+    def retrieve_lento(query):
+        time.sleep(0.3)
+        return ""
+
+    async def tarea_paralela(inicio: float):
+        await asyncio.sleep(0.05)
+        tiempos["marcador"] = time.monotonic() - inicio
+
+    with patch("llm.factory.build_adapter_with_fallback", return_value=adapter), \
+         patch("rag.indexer.has_knowledge", return_value=True), \
+         patch("rag.retriever.retrieve", side_effect=retrieve_lento):
+        from engine import process_message
+        inicio = time.monotonic()
+        await asyncio.gather(
+            process_message("test", session_id=None),
+            tarea_paralela(inicio),
+        )
+
+    # Si retrieve() bloqueara el event loop, tarea_paralela no podría
+    # despertar de su sleep(0.05) hasta que los 0.3s de retrieve_lento
+    # terminaran — el marcador tardaría >= 0.3s en vez de ~0.05s.
+    assert tiempos["marcador"] < 0.15

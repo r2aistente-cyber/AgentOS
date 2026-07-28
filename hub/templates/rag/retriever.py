@@ -8,7 +8,11 @@ import agent_config as config
 TOP_K = 5
 MAX_CHARS = 6000
 
-# Cache del modelo — mismo patrón que indexer.py para no recargar 90MB en cada mensaje
+# Ver indexer.py — DEBE ser el mismo modelo que se usó para indexar
+# (comparten espacio de embeddings), por eso ambos leen la misma config key.
+_EMBEDDING_MODEL = config.get("rag.embedding_model", "paraphrase-multilingual-MiniLM-L12-v2")
+
+# Cache del modelo — mismo patrón que indexer.py para no recargar en cada mensaje
 _model = None
 _client = None
 _collection = None
@@ -18,7 +22,7 @@ def _get_model():
     global _model
     if _model is None:
         from sentence_transformers import SentenceTransformer
-        _model = SentenceTransformer("all-MiniLM-L6-v2")
+        _model = SentenceTransformer(_EMBEDDING_MODEL)
     return _model
 
 

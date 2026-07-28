@@ -25,6 +25,7 @@ import agent_config as config
 from llm.factory import build_adapter_with_fallback as build_adapter
 from llm.prompts import build_system_prompt
 from memory import session as session_store
+from rag import retriever as rag_retriever
 from tools import registry
 from tools.orchestrator import (
     ToolOrchestrator,
@@ -118,7 +119,31 @@ async def process_message(
     history = _trim_history(await session_store.get_history(session_id))
     await session_store.add_message(session_id, "user", message)
 
-    system   = build_system_prompt()
+    system = build_system_prompt()
+    # RAG (opt-in por agente vía config `knowledge:` — ver rag/indexer.py). Se
+    # reactivó para agentes con base de conocimiento propia (ej. r2-legal);
+    # si el agente no tiene índice, retrieve() devuelve "" de inmediato sin
+    # cargar el modelo de embeddings (ver rag/retriever.py). Un fallo de RAG
+    # (ChromaDB no disponible, etc.) no debe tumbar la conversación — mismo
+    # criterio que un fallo de tool: se sigue sin ese contexto.
+    #
+    # asyncio.to_thread es obligatorio acá: retrieve() es síncrono y, la
+    # primera vez que un agente con knowledge la usa, carga el modelo de
+    # embeddings (sentence-transformers) — puede tardar decenas de segundos.
+    # Sin esto, esa carga bloquea el event loop completo del agente: el
+    # healthchecker del Hub (GET /api/v1/health cada 10s, timeout 5s) no
+    # puede ser atendido, el timeout lo marca "error", y el chat de la UI
+    # se ve "desconectado" justo después de la primera respuesta — aunque
+    # esa respuesta sí haya llegado bien (bug real reportado por Xavier,
+    # reproducido: la conversación funcionaba, solo el primer mensaje
+    # disparaba esto por la carga en frío del modelo).
+    try:
+        knowledge_context = await asyncio.to_thread(rag_retriever.retrieve, message)
+    except Exception:  # noqa: BLE001
+        log.exception("RAG retrieve() falló, se continúa sin contexto adicional")
+        knowledge_context = ""
+    if knowledge_context:
+        system = f"{system}\n\n{knowledge_context}"
     messages = list(history) + [{"role": "user", "content": message}]
     return await _run_fsm(session_id, messages, system, model_ref)
 
