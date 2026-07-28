@@ -96,6 +96,27 @@ if (Get-Service -Name SuiteLegalMCPGateway -ErrorAction SilentlyContinue) {
     Write-Output "Servicio SuiteLegalMCPGateway creado."
 }
 
+# ─── Cuenta bajo la cual corren los servicios ──────────────────────────────
+# NSSM instala por defecto como LocalSystem. Bajo esa cuenta,
+# os.path.expanduser("~") (hub/config.py::home_dir, usado para
+# ~/AgentOS/agents.json) resuelve al perfil de sistema
+# (C:\Windows\System32\config\systemprofile), no a C:\Users\xavier -- el
+# servicio queda "Running" pero el Hub arranca viendo 0 agentes en el
+# registro (bug real encontrado el 2026-07-28 al instalar por primera vez:
+# agents.json de xavier invisible para el servicio). Corremos ambos
+# servicios como xavier para que ~ resuelva donde corresponde.
+Write-Output ""
+$cred = Get-Credential -UserName "$env:COMPUTERNAME\xavier" -Message "Contrasena de Windows de xavier (para que R2Hub/SuiteLegalMCPGateway corran como xavier, no LocalSystem)"
+$plainPassword = $cred.GetNetworkCredential().Password
+$objectName = $cred.UserName
+foreach ($svc in @("R2Hub", "SuiteLegalMCPGateway")) {
+    if ((Get-Service -Name $svc -ErrorAction SilentlyContinue).Status -eq "Running") {
+        Stop-Service $svc
+    }
+    & $nssm set $svc ObjectName $objectName $plainPassword
+}
+$plainPassword = $null
+
 Write-Output ""
 Write-Output "Arrancando servicios..."
 Start-Service R2Hub
