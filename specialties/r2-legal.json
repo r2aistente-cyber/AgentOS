@@ -18,7 +18,9 @@
     "temperature": 0.3
   },
   "skills": [
-    "derecho-general",
+    "derecho-general"
+  ],
+  "skills_on_demand": [
     "asistente-escritura",
     "lectura-documentos",
     "analisis-archivos"

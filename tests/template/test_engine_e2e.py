@@ -83,6 +83,36 @@ async def test_engine_ciclo_con_tool(db):
     assert "list_files" in result["tools_used"]
 
 
+# ─── activar_skill: carga bajo demanda de una skill ──────────────────────────
+
+@pytest.mark.asyncio
+async def test_engine_activa_skill_on_demand_y_responde_con_su_contenido(db, template_env):
+    """El LLM llama activar_skill → el contenido completo entra al
+    historial como cualquier tool result → el LLM responde usando eso."""
+    template_env["cfg"]["skills"] = {
+        "on_demand": {
+            "asistente-escritura": {
+                "description": "Redactar y corregir textos",
+                "prompt": "Regla de escritura: usa siempre voz activa.",
+            }
+        }
+    }
+
+    adapter = _make_adapter(
+        {"tool": "activar_skill", "args": {"nombre": "asistente-escritura"}},
+        "Corregido usando voz activa.",
+    )
+
+    with patch("llm.factory.build_adapter_with_fallback", return_value=adapter), \
+         patch("rag.indexer.has_knowledge", return_value=False), \
+         patch("rag.retriever.retrieve", return_value=""):
+        from engine import process_message
+        result = await process_message("corrígeme este párrafo", session_id=None)
+
+    assert "activar_skill" in result["tools_used"]
+    assert result["reply"] == "Corregido usando voz activa."
+
+
 # ─── Multi-round tools ────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio

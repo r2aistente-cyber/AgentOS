@@ -108,10 +108,42 @@ def resolve_specialty(specialty_id: str) -> dict[str, Any]:
             if kf not in knowledge_filenames:
                 knowledge_filenames.append(kf)
 
+    # Skills "on demand": a diferencia de las de arriba (siempre en el
+    # prompt), estas solo se anuncian como índice — el contenido completo
+    # se carga en runtime vía la tool `activar_skill` cuando el LLM decide
+    # que la tarea la necesita. Evita que el prompt crezca sin límite a
+    # medida que se agregan más skills situacionales a una specialty.
+    on_demand_skills: dict[str, dict[str, str]] = {}
+    for skill_name in spec.get("skills_on_demand") or []:
+        skill = _load_skill(skill_name)
+        on_demand_skills[skill_name] = {
+            "description": skill.get("description", ""),
+            "prompt": (skill.get("prompt") or "").strip(),
+        }
+        for kf in skill.get("knowledge_files") or []:
+            if kf not in knowledge_filenames:
+                knowledge_filenames.append(kf)
+
+    if on_demand_skills:
+        index_lines = "\n".join(
+            f"- {name}: {info['description']}" for name, info in on_demand_skills.items()
+        )
+        prompt_parts.append(
+            "## Skills disponibles bajo demanda\n"
+            "No están cargadas todavía — son solo un índice. Cuando la tarea "
+            "coincida claramente con una de estas, usá la tool `activar_skill` "
+            "para traer sus instrucciones completas ANTES de proceder. No "
+            "asumas el contenido a partir del nombre.\n\n" + index_lines
+        )
+        if "activar_skill" not in tools_allow:
+            tools_allow.append("activar_skill")
+
     config_body: dict[str, Any] = {
         "system_prompt": "\n\n".join(prompt_parts),
         "tools": {"allow": tools_allow},
     }
+    if on_demand_skills:
+        config_body["skills"] = {"on_demand": on_demand_skills}
 
     personality = {k: v for k, v in (spec.get("personality") or {}).items()
                    if k != "system_prompt"}
