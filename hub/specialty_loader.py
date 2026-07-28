@@ -176,3 +176,21 @@ def resolve_specialty(specialty_id: str) -> dict[str, Any]:
         "knowledge_source_files": resolved_files,
         "missing_knowledge_files": missing,
     }
+
+
+def skills_summary(specialty_id: str) -> dict[str, list[dict[str, str]]]:
+    """Nombre + descripción de las skills de una specialty, separadas por
+    modo (siempre-on vs bajo demanda) — para mostrar en UI sin tener que
+    resolver todo el config_body."""
+    spec = _resolve_chain(specialty_id)
+
+    def _info(names: list[str]) -> list[dict[str, str]]:
+        return [
+            {"name": n, "description": _load_skill(n).get("description", "")}
+            for n in names
+        ]
+
+    return {
+        "always_on": _info(spec.get("skills") or []),
+        "on_demand": _info(spec.get("skills_on_demand") or []),
+    }

@@ -1,5 +1,13 @@
 import { useState, useEffect } from 'react'
-import { createAgent, listProviderModels, type AgentConfig } from '../api'
+import {
+  createAgent,
+  listProviderModels,
+  listSpecialties,
+  previewSpecialty,
+  type AgentConfig,
+  type SpecialtySummary,
+  type SpecialtyPreview,
+} from '../api'
 import FolderPicker from '../components/FolderPicker'
 import { suggestNumCtx } from '../modelDefaults'
 
@@ -96,14 +104,19 @@ const ALL_TOOLS = [
   'read_file',
   'write_file',
   'list_files',
+  'search_files',
   'search_web',
+  'fetch_url',
   'read_document',
   'read_image',
+  'save_memory',
+  'activar_skill',
   'exec_command',
 ]
 
 // Estado del formulario, plano para editar fácil; se arma el AgentConfig al final.
 interface Form {
+  specialty: string
   name: string
   description: string
   install_path: string
@@ -131,6 +144,7 @@ interface Form {
 }
 
 const DEFAULT: Form = {
+  specialty: '',
   name: '',
   description: '',
   install_path: '',
@@ -185,6 +199,9 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [modelCatalog, setModelCatalog] = useState<Record<string, string[] | null>>({})
+  const [specialties, setSpecialties] = useState<SpecialtySummary[]>([])
+  const [specialtyPreview, setSpecialtyPreview] = useState<SpecialtyPreview | null>(null)
+  const [specialtyError, setSpecialtyError] = useState<string | null>(null)
 
   // Carga el catálogo de modelos al montar el wizard; el estático sirve de base.
   useEffect(() => {
@@ -192,7 +209,43 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
     listProviderModels()
       .then((dynamic) => setModelCatalog({ ...STATIC_CATALOG, ...dynamic }))
       .catch(() => {})
+    listSpecialties()
+      .then(setSpecialties)
+      .catch(() => {})
   }, [])
+
+  // Elegir una specialty prellena personalidad/modelo/tools desde su
+  // config_body resuelto — todo sigue editable después en los pasos
+  // siguientes. "" (Personalizado) vuelve al comportamiento de siempre.
+  const applySpecialty = async (id: string) => {
+    set('specialty', id)
+    setSpecialtyError(null)
+    if (!id) {
+      setSpecialtyPreview(null)
+      return
+    }
+    try {
+      const preview = await previewSpecialty(id)
+      setSpecialtyPreview(preview)
+      const cb = preview.config_body
+      setF((p) => ({
+        ...p,
+        system_prompt: cb.system_prompt ?? p.system_prompt,
+        tone: cb.personality?.tone ?? p.tone,
+        formality: cb.personality?.formality ?? p.formality,
+        humor: cb.personality?.humor ?? p.humor,
+        empathy: cb.personality?.empathy ?? p.empathy,
+        provider: cb.llm?.provider ?? p.provider,
+        model: cb.llm?.model ?? p.model,
+        temperature: cb.llm?.temperature ?? p.temperature,
+        tools: cb.tools?.allow && !cb.tools.allow.includes('*') ? cb.tools.allow : p.tools,
+        security_level: cb.security?.level ?? p.security_level,
+      }))
+    } catch (e) {
+      setSpecialtyPreview(null)
+      setSpecialtyError((e as Error).message)
+    }
+  }
 
   // Modelos disponibles para el proveedor actual (o null si es campo libre)
   const availableModels: string[] | null = modelCatalog[f.provider] ?? null
@@ -275,6 +328,7 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
         name: f.name,
         install_path: f.install_path || undefined,
         config,
+        specialty: f.specialty || undefined,
       })
       onDone()
     } catch (e) {
@@ -326,6 +380,62 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
         {/* Paso 1: Identidad */}
         {step === 0 && (
           <div className="space-y-4">
+            <Field
+              label="Specialty"
+              hint="Prellena personalidad, modelo, tools y skills desde una plantilla existente. Todo sigue editable después. 'Personalizado' es el comportamiento de siempre (sin plantilla)."
+            >
+              <select
+                className={inputCls}
+                value={f.specialty}
+                onChange={(e) => applySpecialty(e.target.value)}
+              >
+                <option value="">Personalizado (sin specialty)</option>
+                {specialties.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+              {specialtyError && (
+                <span className="mt-1 block text-xs text-rose-400">{specialtyError}</span>
+              )}
+            </Field>
+
+            {specialtyPreview && (
+              <div className="space-y-2 rounded-lg border border-indigo-900/60 bg-indigo-950/20 p-3 text-xs">
+                <p className="text-slate-300">
+                  <span className="font-medium text-slate-200">Modelo sugerido:</span>{' '}
+                  {specialtyPreview.config_body.llm?.provider}/{specialtyPreview.config_body.llm?.model}
+                  {' · '}
+                  <span className="font-medium text-slate-200">Tools:</span>{' '}
+                  {specialtyPreview.config_body.tools?.allow?.length ?? 0}
+                </p>
+                {specialtyPreview.always_on.length > 0 && (
+                  <div>
+                    <p className="font-medium text-slate-200">Skills siempre activas</p>
+                    <ul className="list-inside list-disc text-slate-400">
+                      {specialtyPreview.always_on.map((s) => (
+                        <li key={s.name}><span className="font-mono text-slate-300">{s.name}</span>: {s.description}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {specialtyPreview.on_demand.length > 0 && (
+                  <div>
+                    <p className="font-medium text-slate-200">Skills bajo demanda</p>
+                    <ul className="list-inside list-disc text-slate-400">
+                      {specialtyPreview.on_demand.map((s) => (
+                        <li key={s.name}><span className="font-mono text-slate-300">{s.name}</span>: {s.description}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {specialtyPreview.missing_knowledge_files.length > 0 && (
+                  <p className="text-amber-400">
+                    ⚠️ Archivos de conocimiento faltantes: {specialtyPreview.missing_knowledge_files.join(', ')}
+                  </p>
+                )}
+              </div>
+            )}
+
             <Field
               label="Nombre del agente"
               hint="Letras, números, guiones. 2–40 caracteres. Será el identificador."
@@ -695,6 +805,7 @@ export default function CreateWizard({ onDone, onCancel }: Props) {
             )}
             <dl className="divide-y divide-slate-800 rounded-lg border border-slate-800">
               {[
+                ['Specialty', f.specialty || 'personalizado'],
                 ['Nombre', f.name],
                 ['Descripción', f.description || '—'],
                 ['Ubicación', f.install_path || 'por defecto'],

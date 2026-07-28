@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import shutil
 from pathlib import Path
 from typing import Any
@@ -40,6 +41,40 @@ class ConfigUpdateRequest(BaseModel):
 def _info(name_or_info) -> dict:
     info = name_or_info
     return info.to_dict()
+
+
+@router.get("/specialties")
+def list_specialties() -> list[dict]:
+    """Catálogo de specialties disponibles — para el selector del wizard
+    de creación de agentes (ver hub/specialty_loader.py)."""
+    out = []
+    for path in sorted(hub_config.specialties_dir().glob("*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        out.append({
+            "id": data.get("id", path.stem),
+            "name": data.get("name", path.stem),
+            "description": data.get("description", ""),
+        })
+    return out
+
+
+@router.get("/specialties/{specialty_id}/preview")
+def preview_specialty(specialty_id: str) -> dict:
+    """Resuelve una specialty sin crear ningún agente — para que el wizard
+    prellene campos y muestre sus skills antes de confirmar la creación."""
+    try:
+        resolved = specialty_loader.resolve_specialty(specialty_id)
+        summary = specialty_loader.skills_summary(specialty_id)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return {
+        "config_body": resolved["config_body"],
+        "missing_knowledge_files": resolved["missing_knowledge_files"],
+        **summary,
+    }
 
 
 @router.get("/agents")

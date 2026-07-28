@@ -63,6 +63,24 @@ export interface HubInfo {
   online?: number
 }
 
+export interface SkillInfo {
+  name: string
+  description: string
+}
+
+export interface SpecialtySummary {
+  id: string
+  name: string
+  description: string
+}
+
+export interface SpecialtyPreview {
+  config_body: AgentConfig
+  always_on: SkillInfo[]
+  on_demand: SkillInfo[]
+  missing_knowledge_files: string[]
+}
+
 export interface ChatResponse {
   session_id: string
   reply: string
@@ -164,6 +182,11 @@ export async function listProviderModels(): Promise<Record<string, string[] | nu
   return req<Record<string, string[] | null>>(`${HUB}/models`)
 }
 
+export const listSpecialties = () => req<SpecialtySummary[]>(`${HUB}/specialties`)
+
+export const previewSpecialty = (id: string) =>
+  req<SpecialtyPreview>(`${HUB}/specialties/${encodeURIComponent(id)}/preview`)
+
 export const listDir = (path?: string) =>
   req<DirListing>(`${HUB}/fs${path ? `?path=${encodeURIComponent(path)}` : ''}`)
 
@@ -178,6 +201,7 @@ export const createAgent = (payload: {
   name: string
   install_path?: string
   config: AgentConfig
+  specialty?: string
 }) =>
   req<AgentInfo>(`${HUB}/agents`, {
     method: 'POST',

@@ -194,3 +194,33 @@ def test_skills_on_demand_conocimiento_se_resuelve_igual_que_siempre_on(loader_e
     result = specialty_loader.resolve_specialty("hija-on-demand")
     resolved_names = {p.name for p in result["knowledge_source_files"]}
     assert "de-la-skill-b.yaml" in resolved_names
+
+
+# ─── skills_summary: para el selector/preview del wizard ─────────────────────
+
+def test_skills_summary_separa_siempre_on_de_on_demand(loader_env):
+    from hub import specialty_loader
+
+    result = specialty_loader.skills_summary("hija-on-demand")
+
+    assert result["always_on"] == [
+        {"name": "skill-a", "description": ""}
+    ]
+    assert result["on_demand"] == [
+        {"name": "skill-b", "description": "Descripción corta de la skill B."}
+    ]
+
+
+def test_skills_summary_specialty_sin_skills_da_listas_vacias(loader_env):
+    from hub import specialty_loader
+
+    result = specialty_loader.skills_summary("core")
+
+    assert result == {"always_on": [], "on_demand": []}
+
+
+def test_skills_summary_specialty_inexistente_da_filenotfound(loader_env):
+    from hub import specialty_loader
+
+    with pytest.raises(FileNotFoundError):
+        specialty_loader.skills_summary("no-existe")

@@ -1,6 +1,6 @@
 {
   "id": "r2-legal",
-  "name": "R2 Legal",
+  "name": "Legal (Colombia)",
   "version": "1.0",
   "description": "Agente legal colombiano integrado a Suite Legal — gestión de procesos, redacción, consulta Rama Judicial, correo",
   "extends": ["core"],
