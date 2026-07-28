@@ -85,6 +85,22 @@ def templates_dir() -> Path:
     return Path(__file__).resolve().parent / "templates"
 
 
+def specialties_dir() -> Path:
+    """Specialties declarativos versionados en el repo (raíz/specialties)."""
+    return Path(__file__).resolve().parent.parent / "specialties"
+
+
+def skills_dir() -> Path:
+    """Skills declarativos versionados en el repo (raíz/skills)."""
+    return Path(__file__).resolve().parent.parent / "skills"
+
+
+def knowledge_dir() -> Path:
+    """Conocimiento versionado en el repo (raíz/knowledge), fuente para
+    los knowledge_files que declaran skills/specialties."""
+    return Path(__file__).resolve().parent.parent / "knowledge"
+
+
 def port_range() -> tuple[int, int]:
     return (int(get("hub.port_range.start", 9000)), int(get("hub.port_range.end", 9999)))
 

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -10,7 +11,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from hub import config as hub_config
-from hub.agent_manager import AgentManager
+from hub import specialty_loader
+from hub.agent_manager import AgentManager, _deep_merge
 from hub.exporter import export_agent
 from hub.importer import import_agent
 from hub.whatsapp_manager import WhatsAppManager
@@ -28,6 +30,7 @@ class CreateAgentRequest(BaseModel):
     name: str
     install_path: str | None = None
     config: dict[str, Any] = Field(default_factory=dict)
+    specialty: str | None = None  # p. ej. "r2-legal" — ver hub/specialty_loader.py
 
 
 class ConfigUpdateRequest(BaseModel):
@@ -46,10 +49,35 @@ def list_agents() -> list[dict]:
 
 @router.post("/agents", status_code=201)
 def create_agent(req: CreateAgentRequest) -> dict:
+    config_body = req.config
+    knowledge_files: list[Path] = []
+
+    if req.specialty:
+        try:
+            resolved = specialty_loader.resolve_specialty(req.specialty)
+        except FileNotFoundError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        # Lo explícito en req.config gana sobre lo resuelto del specialty.
+        config_body = _deep_merge(resolved["config_body"], req.config)
+        knowledge_files = resolved["knowledge_source_files"]
+
     try:
-        info = manager.create(req.name, req.config, req.install_path)
+        info = manager.create(req.name, config_body, req.install_path)
     except (ValueError, FileExistsError) as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    if knowledge_files:
+        dest_dir = Path(info.dir) / "data" / "knowledge"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        for src in knowledge_files:
+            shutil.copy(src, dest_dir / src.name)
+        # El default de _build_agent_config apunta a workspace/knowledge/
+        # (que no llega a crearse) — para agentes con specialty, corregimos
+        # a la carpeta que sí existe (data/knowledge/).
+        cfg = manager.get_config(req.name)
+        cfg["knowledge"] = [str(dest_dir)]
+        info = manager.update_config(req.name, cfg)
+
     return info.to_dict()
 
 
