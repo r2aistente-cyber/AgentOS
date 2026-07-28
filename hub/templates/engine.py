@@ -145,7 +145,18 @@ async def process_message(
     if knowledge_context:
         system = f"{system}\n\n{knowledge_context}"
     messages = list(history) + [{"role": "user", "content": message}]
-    return await _run_fsm(session_id, messages, system, model_ref)
+
+    # Si el RAG ya encontró contexto relevante, no le ofrecemos al modelo
+    # herramientas de búsqueda externa para esta ronda — pedírselo por prompt
+    # (instrucción "no uses search_web si ya tenés la respuesta") no alcanzó:
+    # deepseek-v4-pro las seguía llamando igual. Sacarlas de la lista de tools
+    # es la única forma confiable de evitarlo. Configurable por agente porque
+    # no todos tienen las mismas tools de acceso a internet.
+    extra_deny = (
+        config.get("rag.deny_tools_if_context_found", ["search_web", "fetch_url"])
+        if knowledge_context else None
+    )
+    return await _run_fsm(session_id, messages, system, model_ref, extra_deny=extra_deny)
 
 
 async def _resume_after_confirm(
@@ -203,11 +214,13 @@ async def _run_fsm(
     system: str,
     model_ref: str | None,
     tools_used: list[str] | None = None,
+    extra_deny: list[str] | None = None,
 ) -> dict:
     """Loop FSM principal: THINKING → EXECUTING → RESPONDING."""
     tools_cfg    = config.get("tools", {}) or {}
+    deny         = list(tools_cfg.get("deny", [])) + list(extra_deny or [])
     llm_tools    = registry.tools_for_llm(
-        tools_cfg.get("allow", ["*"]), tools_cfg.get("deny", [])
+        tools_cfg.get("allow", ["*"]), deny
     )
     adapter      = build_adapter(model_ref)
     orchestrator = ToolOrchestrator(session_id)

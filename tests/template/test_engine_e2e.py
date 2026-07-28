@@ -339,6 +339,62 @@ async def test_engine_funciona_si_rag_lanza_excepcion(db):
 
 
 @pytest.mark.asyncio
+async def test_rag_con_contexto_excluye_tools_de_busqueda_externa(db):
+    """Si el RAG encuentra contexto relevante, search_web/fetch_url no se le
+    ofrecen al LLM para esa ronda — pedirlo solo por prompt no fue suficiente
+    (deepseek-v4-pro seguía llamando search_web igual, caso real reportado
+    por Xavier), así que se filtran del payload de tools directamente."""
+    tools_recibidas_por_llamada: list[list[str]] = []
+
+    async def mock_chat(messages, tools=None, system=None):
+        nombres = [t["function"]["name"] for t in (tools or [])]
+        tools_recibidas_por_llamada.append(nombres)
+        from llm.adapter import LLMResponse
+        return LLMResponse(content="Respondido con contexto RAG.", output_tokens=5)
+
+    adapter = MagicMock()
+    adapter.chat = mock_chat
+
+    with patch("llm.factory.build_adapter_with_fallback", return_value=adapter), \
+         patch("rag.indexer.has_knowledge", return_value=True), \
+         patch("rag.retriever.retrieve", return_value="## Knowledge relevante\ncontenido..."):
+        from engine import process_message
+        await process_message("pregunta con respuesta en el rag", session_id=None)
+
+    assert len(tools_recibidas_por_llamada) == 1
+    nombres = tools_recibidas_por_llamada[0]
+    assert "search_web" not in nombres
+    assert "fetch_url" not in nombres
+    assert "read_file" in nombres, "otras tools no relacionadas con internet deben seguir disponibles"
+
+
+@pytest.mark.asyncio
+async def test_rag_sin_contexto_mantiene_tools_de_busqueda(db):
+    """Si el RAG no encuentra nada relevante, search_web/fetch_url siguen
+    disponibles con normalidad."""
+    tools_recibidas_por_llamada: list[list[str]] = []
+
+    async def mock_chat(messages, tools=None, system=None):
+        nombres = [t["function"]["name"] for t in (tools or [])]
+        tools_recibidas_por_llamada.append(nombres)
+        from llm.adapter import LLMResponse
+        return LLMResponse(content="Sin contexto RAG.", output_tokens=5)
+
+    adapter = MagicMock()
+    adapter.chat = mock_chat
+
+    with patch("llm.factory.build_adapter_with_fallback", return_value=adapter), \
+         patch("rag.indexer.has_knowledge", return_value=True), \
+         patch("rag.retriever.retrieve", return_value=""):
+        from engine import process_message
+        await process_message("pregunta sin respuesta en el rag", session_id=None)
+
+    nombres = tools_recibidas_por_llamada[0]
+    assert "search_web" in nombres
+    assert "fetch_url" in nombres
+
+
+@pytest.mark.asyncio
 async def test_rag_retrieve_no_bloquea_el_event_loop(db):
     """retrieve() es síncrono y, la primera vez que un agente con knowledge
     lo usa, carga el modelo de embeddings (puede tardar decenas de

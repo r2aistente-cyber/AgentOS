@@ -67,7 +67,13 @@ def retrieve(query: str) -> str:
         if not docs:
             return ""
 
-        parts = ["## Knowledge relevante\n"]
+        parts = [
+            "## Knowledge relevante\n"
+            "Esto viene de tu base de conocimiento propia (ya verificada) — "
+            "es tu fuente primaria. Respondé con esto antes de usar cualquier "
+            "otra tool; no busques en internet ni en otro lado salvo que "
+            "esto no contenga la respuesta.\n"
+        ]
         total_chars = 0
 
         for doc, meta, dist in zip(docs, metas, distances):
