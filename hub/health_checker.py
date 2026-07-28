@@ -42,13 +42,20 @@ class HealthChecker:
     async def _check_all(self, client: httpx.AsyncClient) -> None:
         for info in self.manager.list():
             proc = self.manager.processes.get(info.name)
-            if info.status not in ("online", "starting") or proc is None:
+            # "error" también se revisa (no solo online/starting): un
+            # timeout transitorio (ej. el agente bloqueado un momento
+            # cargando el modelo de embeddings del RAG en el primer mensaje)
+            # marcaba el agente como "error" para siempre — sin esto, nunca
+            # se volvía a chequear aunque el proceso siguiera sano y
+            # respondiendo bien un momento después.
+            if info.status not in ("online", "starting", "error") or proc is None:
                 continue
 
             # Detección inmediata: si el proceso OS ya murió, actuar sin esperar timeout HTTP
             if not proc.is_alive:
-                log.warning("Proceso del agente '%s' murió (PID=%s)", info.name, proc.pid)
-                await self._handle_down(info.name, proc)
+                if info.status != "error":
+                    log.warning("Proceso del agente '%s' murió (PID=%s)", info.name, proc.pid)
+                    await self._handle_down(info.name, proc)
                 continue
 
             # Proceso vivo → verificar health endpoint
@@ -59,7 +66,11 @@ class HealthChecker:
             except Exception:
                 alive = False
 
-            if not alive:
+            if alive:
+                if info.status == "error":
+                    log.info("Agente '%s' volvió a responder — recuperando estado 'online'", info.name)
+                    self.manager._set_status(info.name, "online")
+            elif info.status != "error":
                 log.warning("Agente '%s' no responde en %s", info.name, proc.health_url)
                 await self._handle_down(info.name, proc)
 

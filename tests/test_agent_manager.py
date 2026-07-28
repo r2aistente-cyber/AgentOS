@@ -91,3 +91,51 @@ def test_sync_from_template_agrega_archivos_nuevos_del_template(manager_env):
 
     info = mgr.sync_from_template("agente3")
     assert (Path(info.dir) / "rag" / "__init__.py").exists()
+
+
+def test_start_no_relanza_si_ya_responde_en_su_puerto(manager_env):
+    """Reproduce el bug real: el Hub se reinicia y pierde en memoria el
+    handle del subproceso de un agente que sigue vivo de una vida anterior
+    (`self.processes` se vacía) — un `AgentProcess` recién creado siempre
+    empieza con `is_alive=False`. Sin chequear el puerto primero, `start()`
+    lanzaba un segundo uvicorn que chocaba de puerto contra el que ya
+    estaba sirviendo (visto varias veces en la sesión real)."""
+    from unittest.mock import MagicMock, patch
+    from hub.agent_manager import AgentManager
+
+    mgr = AgentManager()
+    mgr.create("agente4", {})
+    mgr._set_status("agente4", "error")  # simula el falso positivo del healthchecker
+
+    # El Hub "se reinició": el AgentProcess trackeado es nuevo, is_alive=False,
+    # pero httpx.get al health_url sí responde (proceso real de otra vida).
+    with patch.object(AgentManager, "_responde_en_su_puerto", return_value=True):
+        info = mgr.start("agente4")
+
+    assert info.status == "online"
+    # No se intentó lanzar un subproceso nuevo — is_alive de un AgentProcess
+    # recién creado sigue False, así que si start() hubiera llamado a
+    # proc.start() habría reventado (no hay agent_main real en el template
+    # mínimo de test) en vez de retornar limpio.
+    assert mgr.processes["agente4"].is_alive is False
+
+
+def test_start_lanza_proceso_si_nada_responde_en_el_puerto(manager_env):
+    """Caso normal: si el puerto no responde de verdad (nada corriendo
+    todavía), start() sí debe intentar lanzar el subproceso."""
+    from unittest.mock import MagicMock, patch
+    from hub.agent_manager import AgentManager
+
+    mgr = AgentManager()
+    mgr.create("agente5", {})
+
+    with patch.object(AgentManager, "_responde_en_su_puerto", return_value=False):
+        mock_proc = MagicMock()
+        mock_proc.is_alive = False
+        mock_proc.pid = 12345
+        mgr.processes["agente5"] = mock_proc
+
+        mgr.start("agente5")
+
+    mock_proc.start.assert_called_once()
+    assert mgr.agents["agente5"].status == "online"

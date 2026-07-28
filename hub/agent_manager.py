@@ -8,6 +8,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
+import httpx
 import yaml
 
 from hub import config
@@ -175,8 +176,21 @@ class AgentManager:
             if proc is None:
                 proc = AgentProcess(name, info.port, Path(info.dir))
                 self.processes[name] = proc
-            if proc.is_alive:
-                return info
+            if proc.is_alive or self._responde_en_su_puerto(proc):
+                # Ya hay un proceso real sirviendo ese puerto — ya sea
+                # trackeado (`proc.is_alive`) o no. Lo segundo pasa cuando
+                # el propio Hub se reinició: `self.processes` se vacía en
+                # memoria, así que un `AgentProcess` recién creado siempre
+                # arranca con `is_alive=False` aunque el subproceso del
+                # agente de una vida anterior del Hub siga vivo — sin este
+                # chequeo, `start()` lanzaba un segundo uvicorn que chocaba
+                # de puerto contra el que ya estaba sirviendo (visto varias
+                # veces en esta sesión). No relanzar; solo corregir el
+                # estado si quedó desincronizado (ej. "error" por un falso
+                # positivo del healthchecker, ver hub/health_checker.py).
+                if info.status != "online":
+                    self._set_status(name, "online")
+                return self.agents[name]
             self._set_status(name, "starting")
             try:
                 proc.start()
@@ -186,6 +200,13 @@ class AgentManager:
             info.pid = proc.pid
             self._set_status(name, "online")
             return info
+
+    @staticmethod
+    def _responde_en_su_puerto(proc: AgentProcess) -> bool:
+        try:
+            return httpx.get(proc.health_url, timeout=1.5).status_code == 200
+        except Exception:
+            return False
 
     def stop(self, name: str) -> AgentInfo:
         with self._lock:
