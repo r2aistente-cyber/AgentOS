@@ -75,9 +75,11 @@ def catalogo(vigencia: str | None = "Vigente", materia_contains: str | None = No
     return resp.json()
 
 
-def descargar_norma(ruta: str) -> str:
-    """Trae `viewDocument.asp?ruta=<ruta>` y devuelve el texto legible."""
-    url = f"{SUIN_BASE}/viewDocument.asp?ruta={ruta}"
+def descargar_norma(ruta: str | None = None, id_: str | None = None) -> str:
+    """Trae `viewDocument.asp?ruta=<ruta>` (o `?id=<id_>` para normas sin
+    una `ruta` amigable descubrible) y devuelve el texto legible."""
+    query = f"ruta={ruta}" if ruta else f"id={id_}"
+    url = f"{SUIN_BASE}/viewDocument.asp?{query}"
     with httpx.Client(verify=_SUIN_VERIFY, timeout=30, follow_redirects=True) as client:
         resp = client.get(url, headers={"User-Agent": "Mozilla/5.0 (r2-legal-ingest)"})
         resp.raise_for_status()
@@ -93,14 +95,16 @@ def descargar_norma(ruta: str) -> str:
     return "\n".join(lines)
 
 
-def guardar(area: str, nombre_archivo: str, titulo: str, ruta: str, texto: str) -> Path:
+def guardar(area: str, nombre_archivo: str, titulo: str, texto: str,
+            ruta: str | None = None, id_: str | None = None) -> Path:
     """Guarda en knowledge/<area>/<nombre_archivo>.md con cabecera de metadatos."""
     dest_dir = KNOWLEDGE_DIR / area
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest = dest_dir / f"{nombre_archivo}.md"
+    query = f"ruta={ruta}" if ruta else f"id={id_}"
     header = (
         f"# {titulo}\n\n"
-        f"Fuente: {SUIN_BASE}/viewDocument.asp?ruta={ruta}\n"
+        f"Fuente: {SUIN_BASE}/viewDocument.asp?{query}\n"
         f"Descargado: {date.today().isoformat()}\n\n---\n\n"
     )
     dest.write_text(header + texto, encoding="utf-8")
@@ -112,8 +116,9 @@ def main() -> None:
                                   formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--area", required=True,
                      help="civil|laboral|familia|penal|comercial|administrativo|tributario")
-    ap.add_argument("--ruta", required=True,
-                     help='p. ej. "Decretos/1874133" o "Leyes/1663230"')
+    grupo = ap.add_mutually_exclusive_group(required=True)
+    grupo.add_argument("--ruta", help='p. ej. "Decretos/1874133" o "Leyes/1663230"')
+    grupo.add_argument("--id", dest="id_", help='p. ej. "1132325" — para normas sin ruta amigable')
     ap.add_argument("--titulo", required=True,
                      help='p. ej. "Código Sustantivo del Trabajo"')
     ap.add_argument("--nombre-archivo",
@@ -121,11 +126,11 @@ def main() -> None:
     args = ap.parse_args()
 
     nombre = args.nombre_archivo or re.sub(r"[^a-z0-9]+", "-", args.titulo.lower()).strip("-")
-    texto = descargar_norma(args.ruta)
+    texto = descargar_norma(ruta=args.ruta, id_=args.id_)
     if len(texto) < 200:
         print(f"AVISO: texto extraído sospechosamente corto ({len(texto)} caracteres) "
               "— revisar manualmente.", file=sys.stderr)
-    dest = guardar(args.area, nombre, args.titulo, args.ruta, texto)
+    dest = guardar(args.area, nombre, args.titulo, texto, ruta=args.ruta, id_=args.id_)
     print(f"Guardado: {dest} ({len(texto)} caracteres)")
 
 

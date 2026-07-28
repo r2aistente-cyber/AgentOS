@@ -70,7 +70,8 @@ tools:
 
 knowledge_files:
   - principios-generales.yaml
-  # Las demás áreas (laboral, familia, penal, comercial, administrativo,
-  # tributario) se agregan aquí a medida que el pipeline de ingesta desde
-  # SUIN-Juriscol (https://www.suin-juriscol.gov.co) produzca su contenido —
-  # ver knowledge/<área>/ en el repo.
+  # Las 7 áreas (civil, laboral, familia, penal, comercial, administrativo,
+  # tributario) ya están ingeridas desde SUIN-Juriscol
+  # (https://www.suin-juriscol.gov.co, ver scripts/suin_ingest.py) — se
+  # declaran en specialties/r2-legal.json en vez de acá para que este skill
+  # base siga siendo agnóstico de especialidad.

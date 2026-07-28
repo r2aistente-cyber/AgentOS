@@ -31,9 +31,23 @@ def test_guardar_crea_carpeta_del_area_si_no_existe(tmp_path):
     from scripts import suin_ingest
 
     with patch.object(suin_ingest, "KNOWLEDGE_DIR", tmp_path):
-        suin_ingest.guardar("penal", "test", "Test", "Leyes/1", "contenido")
+        suin_ingest.guardar("penal", "test", "Test", "contenido", ruta="Leyes/1")
 
     assert (tmp_path / "penal").is_dir()
+
+
+def test_guardar_acepta_id_como_alternativa_a_ruta(tmp_path):
+    """Algunas normas (ej. el Estatuto Tributario) no tienen una `ruta`
+    amigable descubrible — solo un `id` numérico."""
+    from scripts import suin_ingest
+
+    with patch.object(suin_ingest, "KNOWLEDGE_DIR", tmp_path):
+        dest = suin_ingest.guardar(
+            "tributario", "estatuto-tributario", "Estatuto Tributario", "texto", id_="1132325",
+        )
+
+    content = dest.read_text(encoding="utf-8")
+    assert "id=1132325" in content
 
 
 def test_descargar_norma_filtra_ruido_de_navegacion(monkeypatch):
@@ -86,7 +100,7 @@ def test_texto_muy_corto_no_crashea_solo_avisa(tmp_path, capsys, monkeypatch):
     """Un texto sospechosamente corto debe avisar por stderr, no fallar."""
     from scripts import suin_ingest
 
-    monkeypatch.setattr(suin_ingest, "descargar_norma", lambda ruta: "corto")
+    monkeypatch.setattr(suin_ingest, "descargar_norma", lambda ruta=None, id_=None: "corto")
     monkeypatch.setattr(suin_ingest, "KNOWLEDGE_DIR", tmp_path)
     monkeypatch.setattr(
         "sys.argv",
