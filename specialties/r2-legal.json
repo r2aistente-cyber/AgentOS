@@ -46,13 +46,6 @@
       "_api_key_nota": "Placeholder deliberado — nunca comitear la key real. Se setea en el config.yaml de la instancia del agente (backend/scripts/crear_agente_ia.py en suite-legal genera el valor real, la MISMA key que usa mcp_gateway/server.py para autenticar y para llamar de vuelta a la API REST). Las tools disponibles (guardar_borrador, y las que se agreguen después) se descubren en vivo vía MCP — ya no hay un catálogo de endpoints copiado a mano acá."
     }
   ],
-  "sandbox": {
-    "paths": [
-      "/tmp/suite-legal/",
-      "/tmp/r2-autonomous/",
-      "~/r2-autonomous/"
-    ]
-  },
   "knowledge_files": [
     "principios-generales.yaml",
     "laboral/codigo-sustantivo-trabajo.md",

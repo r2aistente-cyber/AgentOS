@@ -322,7 +322,15 @@ class AgentManager:
         workspace_dir = agent_dir / "workspace"
         merged["agent"]["workspace"] = str(workspace_dir)
         merged.setdefault("security", {})
-        merged["security"].setdefault("sandbox_paths", [str(workspace_dir)])
+        # Siempre incluye el workspace propio del agente, incluso si un
+        # specialty ya trae sandbox_paths (ej. r2-legal hereda los del
+        # personal de Xavier vía "extends": ["core"]) -- antes esto usaba
+        # setdefault() sobre la lista entera, así que un specialty con
+        # cualquier sandbox_paths propio dejaba al agente SIN acceso a su
+        # propio workspace/ (read_file/write_file ahí habrían fallado).
+        sandbox_paths = merged["security"].setdefault("sandbox_paths", [])
+        if str(workspace_dir) not in sandbox_paths:
+            sandbox_paths.append(str(workspace_dir))
         # Generar token único por agente si no viene en el body
         if not merged["security"].get("token"):
             merged["security"]["token"] = secrets.token_hex(32)
