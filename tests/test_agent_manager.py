@@ -139,3 +139,41 @@ def test_start_lanza_proceso_si_nada_responde_en_el_puerto(manager_env):
 
     mock_proc.start.assert_called_once()
     assert mgr.agents["agente5"].status == "online"
+
+
+# ─── reserve_port / release_port (hardening del import de agentes) ────────
+# Antes, el endpoint de import llamaba _next_port() fuera del lock del
+# manager -- dos imports concurrentes podían recibir el mismo puerto.
+# reserve_port() lo reserva atómicamente hasta que el caller registra el
+# agente o libera la reserva si la operación falla.
+
+def test_reserve_port_no_repite_hasta_liberar(manager_env):
+    from hub.agent_manager import AgentManager
+
+    mgr = AgentManager()
+    p1 = mgr.reserve_port()
+    p2 = mgr.reserve_port()
+    assert p1 != p2
+
+    mgr.release_port(p1)
+    p3 = mgr.reserve_port()
+    assert p3 == p1  # vuelve a estar disponible como el primero libre
+
+
+def test_next_port_salta_uno_ocupado_de_verdad_por_el_so(manager_env):
+    """No solo mira el registro en memoria -- hace un bind real. Sin esto,
+    un puerto del rango ya usado por otro proceso de la máquina (ej. algo
+    del propio despacho) se entregaba igual, y el agente fallaba recién al
+    intentar arrancar."""
+    import socket
+    from hub.agent_manager import AgentManager
+
+    mgr = AgentManager()
+    start, _ = (9000, 9010)  # ver port_range parcheado en manager_env
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(("127.0.0.1", start))
+    try:
+        port = mgr.reserve_port()
+        assert port != start
+    finally:
+        s.close()

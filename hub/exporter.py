@@ -20,6 +20,15 @@ Deliberadamente NO incluye (ver auditoría de huecos, 2026-07-27):
     config exportado — Sandbox cae a su fallback seguro (data/ del propio
     agente, ver security/sandbox.py:_allowed_dirs) hasta que el nuevo
     dueño configure las suyas.
+
+Sí incluye deliberadamente (decisión explícita, no un descuido):
+  - data/rag_index/ (índice persistido de chromadb): es conocimiento
+    acumulado real del agente, no datos de test — el caso de uso previsto
+    para export/import es migrar una instancia YA configurada a otra
+    máquina (ver Stream A, no la instalación de un despacho nuevo, que
+    usa AgentManager.create() con un specialty en vez de export/import),
+    y ese conocimiento debe sobrevivir la migración. Puede pesar/tardar
+    más que el resto del paquete — aceptado como costo del caso de uso.
 """
 from __future__ import annotations
 

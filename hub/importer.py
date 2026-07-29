@@ -47,7 +47,13 @@ def import_agent(
         if agent_dir.exists():
             raise FileExistsError(f"El directorio '{agent_dir}' ya existe")
 
-        # 2. Extraer solo los miembros bajo agent/
+        # 2. Extraer solo los miembros bajo agent/ — este paquete puede venir
+        # de otra máquina o de un archivo subido a mano, así que un member
+        # con ../ o una ruta absoluta (que al hacer agent_dir / rel
+        # simplemente REEMPLAZA a agent_dir por completo, no se concatena)
+        # no es hipotético, es la superficie de ataque obvia de "extraer un
+        # tar de origen no confiable". Symlinks/hardlinks también se
+        # rechazan: podrían apuntar fuera del directorio destino.
         agent_dir.mkdir(parents=True)
         prefix = "agent/"
         for member in tar.getmembers():
@@ -56,7 +62,11 @@ def import_agent(
             rel = member.name[len(prefix):]
             if not rel:
                 continue
-            dest_path = agent_dir / rel
+            if member.issym() or member.islnk():
+                raise ValueError(f"Miembro no permitido en el paquete (symlink/hardlink): {member.name}")
+            dest_path = (agent_dir / rel).resolve()
+            if not (dest_path == agent_dir or agent_dir in dest_path.parents):
+                raise ValueError(f"Miembro fuera del directorio destino (posible path traversal): {member.name}")
             if member.isdir():
                 dest_path.mkdir(parents=True, exist_ok=True)
             elif member.isfile():

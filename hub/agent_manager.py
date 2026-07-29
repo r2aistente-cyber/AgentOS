@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import secrets
 import shutil
+import socket
 import threading
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,20 @@ import yaml
 from hub import config
 from hub.agent_process import AgentProcess
 from hub.models import AgentInfo
+
+
+def _port_is_free(port: int) -> bool:
+    """Bind real (no solo mirar el registro en memoria) — sin esto, un
+    puerto ocupado por otro proceso del sistema operativo (ej. una
+    máquina de despacho con software propio en ese rango) se entregaba
+    igual, y el agente fallaba recién al intentar arrancar."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            s.bind(("127.0.0.1", port))
+            return True
+        except OSError:
+            return False
 
 
 class AgentManager:
@@ -27,6 +42,10 @@ class AgentManager:
         self._lock = threading.Lock()
         self.agents: dict[str, AgentInfo] = self._load_registry()
         self.processes: dict[str, AgentProcess] = {}
+        # Puertos reservados por reserve_port() pero todavía no registrados
+        # en self.agents (ej. mientras un import de agente está en curso) —
+        # ver reserve_port/release_port.
+        self._reserved_ports: set[int] = set()
 
     # ── Registro (persistencia) ─────────────────────────────────────────────
 
@@ -46,12 +65,30 @@ class AgentManager:
     # ── Puertos ──────────────────────────────────────────────────────────────
 
     def _next_port(self) -> int:
+        """Requiere que el caller sostenga self._lock (no es reentrante)."""
         start, end = config.port_range()
-        used = {a.port for a in self.agents.values()}
+        used = {a.port for a in self.agents.values()} | self._reserved_ports
         for port in range(start, end + 1):
-            if port not in used:
+            if port in used:
+                continue
+            if _port_is_free(port):
                 return port
         raise RuntimeError(f"No hay puertos libres en el rango {start}-{end}")
+
+    def reserve_port(self) -> int:
+        """Reserva un puerto para un agente que todavía no se registró
+        (ej. import en curso) — sin esto, dos imports/creates concurrentes
+        podían recibir el mismo puerto (create() sostiene el lock durante
+        toda la operación, pero el import HTTP no lo hacía). Liberar con
+        release_port() si la operación no llega a registrar el agente."""
+        with self._lock:
+            port = self._next_port()
+            self._reserved_ports.add(port)
+            return port
+
+    def release_port(self, port: int) -> None:
+        with self._lock:
+            self._reserved_ports.discard(port)
 
     # ── CRUD ─────────────────────────────────────────────────────────────────
 

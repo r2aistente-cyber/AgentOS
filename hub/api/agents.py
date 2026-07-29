@@ -4,6 +4,8 @@ from __future__ import annotations
 import asyncio
 import json
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -352,7 +354,16 @@ async def export_agent_endpoint(name: str):
 
 @router.post("/agents/import", status_code=201)
 async def import_agent_endpoint(file: UploadFile):
-    """Importa un agente desde un .tar.gz exportado por AgentOS."""
+    """Importa un agente desde un .tar.gz exportado por AgentOS.
+
+    A diferencia de crear un agente nuevo (POST /agents), este paquete
+    viene de afuera (otra máquina, o un archivo subido a mano) — se
+    verifica que de verdad arranque y responda antes de darlo por
+    exitoso, instalando sus dependencias en el intérprete del propio Hub
+    si hace falta (los agentes no tienen venv propio, ver
+    hub/agent_process.py — corren con sys.executable del Hub, así que
+    esto instala en el entorno compartido de la máquina, no aislado por
+    agente)."""
     if not file.filename or not file.filename.endswith(".tar.gz"):
         raise HTTPException(status_code=400, detail="El archivo debe ser un .tar.gz")
 
@@ -360,14 +371,16 @@ async def import_agent_endpoint(file: UploadFile):
     existing = {a.name for a in manager.list()}
     dest_base = hub_config.agents_dir()
 
+    port = manager.reserve_port()
     try:
-        port = manager._next_port()
         agent_name, agent_dir, cfg = await asyncio.to_thread(
             import_agent, pkg_bytes, dest_base, port, existing
         )
     except (ValueError, FileExistsError) as e:
+        manager.release_port(port)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        manager.release_port(port)
         raise HTTPException(status_code=500, detail=f"Error al importar: {e}")
 
     from hub.models import AgentInfo
@@ -382,8 +395,38 @@ async def import_agent_endpoint(file: UploadFile):
     with manager._lock:
         manager.agents[agent_name] = info
         manager._save_registry()
+    manager.release_port(port)  # ya está en self.agents -- _next_port lo ve por ahí de ahora en más
 
-    return info.to_dict()
+    warning = await _install_deps_and_verify(agent_name, agent_dir)
+    result = manager.get(agent_name).to_dict()
+    if warning:
+        result["import_warning"] = warning
+    return result
+
+
+async def _install_deps_and_verify(agent_name: str, agent_dir: Path) -> str | None:
+    """Instala requirements.txt (si existe) en el intérprete del Hub y
+    arranca el agente para confirmar que responde. Devuelve un mensaje de
+    advertencia si algo falló (deja el agente en status="error" con el
+    motivo, en vez de un 201 ciego con status="offline" sin haber
+    verificado nada)."""
+    req_path = agent_dir / "requirements.txt"
+    if req_path.exists():
+        proc = await asyncio.to_thread(
+            subprocess.run,
+            [sys.executable, "-m", "pip", "install", "-r", str(req_path)],
+            capture_output=True, text=True, timeout=300,
+        )
+        if proc.returncode != 0:
+            with manager._lock:
+                manager._set_status(agent_name, "error")
+            return f"No se pudieron instalar las dependencias: {proc.stderr[-1000:]}"
+
+    try:
+        await asyncio.to_thread(manager.start, agent_name)
+    except Exception as e:
+        return f"Dependencias instaladas, pero el agente no pudo arrancar: {e}"
+    return None
 
 
 @router.get("/stats")
