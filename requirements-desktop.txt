@@ -1,0 +1,9 @@
+# Dependencias exclusivas de la ventana nativa de escritorio (desktop_shell.py).
+#
+# A propósito NO viven en hub/requirements.txt: ese archivo se reusa tal cual
+# como requirements.txt de cada agente exportado (ver hub/exporter.py,
+# _read_requirements) y un agente headless no necesita una librería de
+# ventanas GUI. Se instala aparte, solo para el Hub, solo si vas a usar
+# desktop_shell.py (no aplica a instalaciones "servicio" tipo
+# Preparar-EntornoHub.ps1 + NSSM, que corren sin ventana).
+pywebview==6.2.1

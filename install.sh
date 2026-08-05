@@ -47,6 +47,7 @@ else
 fi
 
 "$VENV/bin/pip" install -r "$REPO/hub/requirements.txt" --quiet --upgrade
+"$VENV/bin/pip" install -r "$REPO/requirements-desktop.txt" --quiet --upgrade
 echo " [OK] Dependencias instaladas"
 
 # ── Estructura de directorios ─────────────────────────────────────────────────

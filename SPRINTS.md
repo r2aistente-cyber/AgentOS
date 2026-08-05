@@ -112,9 +112,10 @@ dependencias salvo Ollama, ícono en bandeja del sistema, `r2 update`/
 refleja hoy la dirección real** (ver decisión pendiente en Sprint 11).
 
 ### Lo que existe de verdad (verificado 2026-08-04)
-- [x] `install.sh` / `install.bat` — funcionales
+- [x] `install.bat` (Windows) — funcional
 - [x] `hub/exporter.py` → `export_agent()`: `.tar.gz` con secretos saneados
-  (`llm.api_key`, `search.brave_api_key`, `security.token` strippeados)
+  (`llm.api_key`, `search.brave_api_key`, `security.token`, `bot_token`
+  strippeados)
 - [x] `hub/importer.py` → `import_agent()`: extrae + configura + arranca
 - [x] Export/import endurecido para **distribución cross-máquina**
   (commit `334c0b0`)
@@ -122,14 +123,51 @@ refleja hoy la dirección real** (ver decisión pendiente en Sprint 11).
 - [x] `scripts/Instalar-Servicios-NSSM.ps1` / `Desinstalar-...` — Hub y
   `mcp_gateway` como **servicios de Windows** corriendo como usuario `xavier`
   (no `LocalSystem`), parametrizable por servicio
+- [x] Acceso directo de escritorio con ícono propio (`r2hub.ico`) y arranque
+  **totalmente silencioso**: `Iniciar-R2Hub.bat` lanzaba Hub y frontend con
+  `start /min` (sí llegaba a mostrar un flash de consola) y su propia
+  consola quedaba visible mientras el usuario esperaba. Ahora Hub/frontend
+  arrancan vía `Start-Process -WindowStyle Hidden` (oculto de verdad, sin
+  flash, con stdout/stderr a `AgentOS/logs/`), y el acceso directo apunta a
+  `Iniciar-R2Hub-Oculto.ps1` (`powershell -WindowStyle Hidden`) en vez del
+  `.bat` directo — lo único visible al abrir el ícono es la ventana de la
+  app. Verificado en esta máquina: único proceso con ventana visible es
+  `python — "R2 Hub · AgentOS"`, cero `cmd`/`powershell` con ventana.
+
+### Cross-platform (macOS/Linux) — arreglado hoy, 2026-08-04
+`install.sh` **estaba roto de verdad**, no solo "sin probar": llamaba a
+`bash Iniciar-R2Hub.sh` para arrancar el Hub, y ese archivo nunca existió en
+el repo (solo `Iniciar-R2Hub.bat`, la versión Windows) — el instalador se
+habría caído en el último paso, y el launcher de escritorio que crea también
+habría quedado roto. Además `desktop_shell.py` (pywebview) nunca estuvo en
+ningún `requirements.txt` — bug real también en Windows, no solo en Mac,
+enmascarado porque ya estaba instalado a mano en el venv de esta máquina.
+
+- [x] `Iniciar-R2Hub.sh` — creado (equivalente a `Iniciar-R2Hub.bat`: arranca
+  Hub + Vite en background con `nohup`, espera con polling, abre la ventana
+  pywebview)
+- [x] `requirements-desktop.txt` — `pywebview` separado de
+  `hub/requirements.txt` a propósito (ese archivo se reusa tal cual como
+  requirements de cada agente *exportado*; un agente headless no necesita
+  una librería de ventanas). `install.sh`/`install.bat` ahora instalan ambos.
+- [x] Limpieza: `backend/memory/session.py` — archivo muerto de la v1
+  (pre-migración a `hub/`) que había quedado trackeado en git por error,
+  sin ninguna referencia en el código — eliminado.
+- [ ] **Sigue sin correrse en una Mac/Linux real** — la revisión fue de
+  código (rutas, imports, requirements), no una corrida end-to-end en el
+  SO real. `pywebview` sí declara sus dependencias nativas de macOS
+  (`pyobjc-framework-Cocoa`/`WebKit`) vía markers de plataforma en PyPI, así
+  que debería resolverlas solo, pero falta confirmarlo con una instalación real.
+- [ ] No hay equivalente a NSSM para correr el Hub como servicio en
+  background en macOS (sería `launchd` + un `.plist`) — hoy no existe nada
+  de eso; sin él, "instalar" en Mac significa `bash Iniciar-R2Hub.sh` cada
+  vez, no un servicio que arranca solo.
 
 ### Lo que falta de verdad
 - [ ] `update` — actualizar un agente exportado **in-place preservando
   memoria/config** (hoy `import_agent()` no distingue instalación nueva de
   actualización)
 - [ ] `rollback` — volver a la versión anterior de un paquete importado
-- [ ] Cross-platform — todo lo de `scripts/` (NSSM) es **Windows-only**; nunca
-  se probó macOS/Linux pese a que `install.sh` existe
 
 ## ✅ Sprint 8 — Endurecimiento de Seguridad — cerrado 2026-07-23
 
@@ -189,10 +227,20 @@ alguna vez apareció como pendiente en v2.0 ya está hecho.
   — el resto de formatos (texto, PDF, DOCX, XLSX, CSV) ya funciona
 - [ ] Test dedicado de aislamiento cross-agente del sandbox
 - [ ] Frontend: responsive + estados loading/empty/error
-- [ ] Declarar oficialmente el soporte de plataforma (Windows-only via NSSM,
-  o portar `scripts/` a macOS/Linux)
+- [ ] Verificar `install.sh` en una Mac/Linux real (ver Sprint 7/9 —
+  arreglado por código hoy, falta la corrida real)
+- [ ] Equivalente a NSSM para macOS (`launchd` + `.plist`) si se quiere que
+  el Hub corra como servicio ahí también, no solo `bash Iniciar-R2Hub.sh` manual
 - [ ] Frontend: campo de `channels.telegram.{bot_token,allowed_users}` en el
   wizard/`AgentDetail` (hoy funciona pero requiere editar `config.yaml` a mano)
+- [ ] **`hub/requirements.txt` tiene pins que no coinciden con lo instalado
+  de verdad** — descubierto 2026-08-04 en esta máquina: el venv real corre
+  `pydantic 2.14.0a1`/`fastapi 0.139.2`, pero el archivo pide
+  `pydantic==2.8.2`/`fastapi==0.115.0`. Esos pins viejos no tienen wheel
+  para Python 3.14 y forzar su instalación falla intentando compilar
+  `pydantic-core` desde código fuente (bloqueado además por una política de
+  Application Control en esta PC). No se tocó — el venv actual sigue sano —
+  pero una reinstalación desde cero en esta máquina, hoy, se rompería.
 
 ---
 

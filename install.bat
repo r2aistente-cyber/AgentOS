@@ -66,6 +66,11 @@ if %errorlevel% neq 0 (
     echo  ERROR: Fallo al instalar dependencias Python
     pause & exit /b 1
 )
+"%VENV%\Scripts\pip" install -r "%REPO%\requirements-desktop.txt" --quiet --upgrade
+if %errorlevel% neq 0 (
+    echo  ERROR: Fallo al instalar dependencias de la ventana de escritorio
+    pause & exit /b 1
+)
 echo  [OK] Dependencias instaladas
 
 :: ── Crear estructura de directorios ─────────────────────────────────────────
@@ -87,12 +92,22 @@ if %errorlevel% neq 0 (
 
 :: ── Crear acceso directo en el escritorio ───────────────────────────────────
 echo [6/6] Creando acceso directo en el escritorio...
+:: TargetPath apunta a powershell -WindowStyle Hidden ejecutando
+:: Iniciar-R2Hub-Oculto.ps1 (no al .bat directo) para que el arranque quede
+:: totalmente oculto -- Iniciar-R2Hub.bat ya lanza Hub/frontend ocultos por
+:: su cuenta, pero eso no sirve de nada si la consola del .bat en sí sigue
+:: siendo visible al abrirlo desde el icono. Comillas dobladas ("") porque
+:: esto va dentro de un -Command "..." de cmd.exe -- así es como cmd.exe
+:: embebe una comilla literal dentro de un argumento entre comillas.
 powershell -NoProfile -Command ^
   "$ws=New-Object -ComObject WScript.Shell; ^
    $s=$ws.CreateShortcut('$env:USERPROFILE\Desktop\R2 Hub.lnk'); ^
-   $s.TargetPath='%REPO%\Iniciar-R2Hub.bat'; ^
+   $s.TargetPath='%WINDIR%\System32\WindowsPowerShell\v1.0\powershell.exe'; ^
+   $s.Arguments='-NoProfile -WindowStyle Hidden -File ""%REPO%\Iniciar-R2Hub-Oculto.ps1""'; ^
    $s.WorkingDirectory='%REPO%'; ^
    $s.Description='R2 Hub / AgentOS'; ^
+   $s.IconLocation='%REPO%\r2hub.ico,0'; ^
+   $s.WindowStyle=7; ^
    $s.Save()"
 echo  [OK] Acceso directo "R2 Hub" creado en el escritorio
 

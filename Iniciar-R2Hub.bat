@@ -1,6 +1,11 @@
 @echo off
 title R2 Hub - AgentOS
 cd /d "%~dp0"
+set "REPO=%~dp0"
+set "REPO=%REPO:~0,-1%"
+set "VENV=%REPO%\backend\.venv"
+set "AGENTOS_HOME=%USERPROFILE%\AgentOS"
+if not exist "%AGENTOS_HOME%\logs" mkdir "%AGENTOS_HOME%\logs"
 
 echo.
 echo  ==========================================
@@ -16,7 +21,11 @@ if %errorlevel%==0 (
 )
 
 echo  [1/3] Arrancando Hub (backend)...
-start "R2-Hub Backend" /min cmd /c "backend\.venv\Scripts\python -m hub.main 2>&1"
+:: Start-Process -WindowStyle Hidden = sin consola, ni siquiera un flash
+:: (a diferencia de "start /min", que sí llega a mostrarse un instante).
+:: stdout/stderr van a AgentOS\logs en vez de perderse en una ventana que
+:: ya no existe.
+powershell -NoProfile -WindowStyle Hidden -Command "Start-Process -FilePath '%VENV%\Scripts\python.exe' -ArgumentList '-m','hub.main' -WorkingDirectory '%REPO%' -WindowStyle Hidden -RedirectStandardOutput '%AGENTOS_HOME%\logs\hub_stdout.log' -RedirectStandardError '%AGENTOS_HOME%\logs\hub_stderr.log'"
 
 :: Esperar que el Hub responda
 echo       Esperando Hub...
@@ -35,7 +44,7 @@ if %errorlevel%==0 (
 )
 
 echo  [2/3] Arrancando frontend (Vite)...
-start "R2-Hub Frontend" /min cmd /c "cd frontend && npm run dev 2>&1"
+powershell -NoProfile -WindowStyle Hidden -Command "Start-Process -FilePath 'cmd.exe' -ArgumentList '/c','npm run dev' -WorkingDirectory '%REPO%\frontend' -WindowStyle Hidden -RedirectStandardOutput '%AGENTOS_HOME%\logs\frontend_stdout.log' -RedirectStandardError '%AGENTOS_HOME%\logs\frontend_stderr.log'"
 
 :: Esperar que Vite responda
 echo       Esperando frontend...
@@ -47,12 +56,8 @@ echo  [OK] Frontend en linea en :5500
 
 :launch_ui
 echo  [3/3] Abriendo ventana de escritorio...
-echo.
-echo  ==========================================
-echo   AgentOS listo. Cerrando esta ventana...
-echo  ==========================================
-echo.
-timeout /t 2 /nobreak >nul
 
-:: Abrir en ventana nativa (pywebview) — sin navegador
-backend\.venv\Scripts\python desktop_shell.py
+:: Ventana nativa (pywebview) — esta SÍ debe verse, es la app en sí.
+:: Corre en foreground: cuando el usuario la cierra, este script termina.
+:: Hub y frontend siguen corriendo en background (ver arriba).
+"%VENV%\Scripts\python.exe" "%REPO%\desktop_shell.py"
