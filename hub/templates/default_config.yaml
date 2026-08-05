@@ -47,5 +47,9 @@ channels:
   web: true
   whatsapp:
     enabled: false
+  telegram:
+    enabled: false
+    bot_token: ""       # de @BotFather — el export lo sanea, nunca viaja en el .tar.gz
+    allowed_users: []   # chat_id de Telegram permitidos; vacío = abierto a cualquiera
 
 auto_restart: false

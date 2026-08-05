@@ -18,7 +18,7 @@ from typing import Any
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "hub" / "templates"
 
 _ENGINE_PREFIXES = ("llm.", "tools.", "security.", "memory.", "rag.", "engine")
-_ENGINE_PACKAGES = ("llm", "tools", "security", "memory", "rag", "engine")
+_ENGINE_PACKAGES = ("llm", "tools", "security", "memory", "rag", "engine", "telegram_bot")
 
 
 def default_config(tmp_path: Path) -> dict[str, Any]:

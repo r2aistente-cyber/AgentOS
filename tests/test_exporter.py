@@ -131,6 +131,27 @@ def test_requirements_incluye_dependencias_reales_no_solo_la_lista_vieja(tmp_pat
         assert paquete_critico in reqs, f"falta {paquete_critico} en requirements.txt exportado"
 
 
+def test_telegram_bot_token_no_viaja_en_el_export(tmp_path):
+    """channels.telegram.bot_token es tan secreto como llm.api_key — quien
+    reciba el paquete no debe heredar el bot de Telegram del dueño original."""
+    agent_dir = _make_agent_dir(tmp_path)
+    cfg = yaml.safe_load((agent_dir / "config.yaml").read_text(encoding="utf-8"))
+    cfg["channels"] = {"telegram": {"enabled": True, "bot_token": "123456:AAtoken-secreto",
+                                     "allowed_users": ["987654321"]}}
+    (agent_dir / "config.yaml").write_text(yaml.safe_dump(cfg), encoding="utf-8")
+
+    pkg = exporter.export_agent("agente-test", agent_dir)
+    raw_cfg = _extract_member(pkg, "agent/config.yaml")
+    out = yaml.safe_load(raw_cfg)
+
+    assert "bot_token" not in out["channels"]["telegram"]
+    # allowed_users es específico del dueño original (sus chat_id de
+    # Telegram) — tampoco debe viajar, quien importe configura el suyo.
+    assert "allowed_users" not in out["channels"]["telegram"]
+    # enabled sí es config legítima del agente, no un secreto — se conserva.
+    assert out["channels"]["telegram"]["enabled"] is True
+
+
 def test_requirements_lee_el_archivo_real_del_repo(tmp_path):
     """Confirma que se lee hub/requirements.txt de verdad (no el fallback) —
     si alguien agrega una dependencia nueva ahí (ej. `mcp` para la

@@ -49,11 +49,11 @@ _EXCLUDE_DIRS  = {"logs"}           # logs son locales; se regeneran al arrancar
 # exportado — quien reciba el .tar.gz no debería heredar las credenciales
 # del agente original. Se reponen vía variable de entorno o se piden de
 # nuevo al importar.
-_SECRET_KEYS = {"api_key", "token", "brave_api_key"}
+_SECRET_KEYS = {"api_key", "token", "brave_api_key", "bot_token"}
 
 # Claves que no son secretos pero tampoco deben viajar: son específicas del
 # dueño/máquina de origen, no del agente en sí (ver docstring del módulo).
-_OWNER_SPECIFIC_KEYS = {"sandbox_paths"}
+_OWNER_SPECIFIC_KEYS = {"sandbox_paths", "allowed_users"}
 
 
 def _sanitize_config_yaml(raw: bytes) -> bytes:

@@ -12,11 +12,20 @@ Seguridad (Sprint 8):
 """
 from __future__ import annotations
 
+import logging
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
+
+# Sin esto, cualquier `logging.getLogger(...).info/.warning(...)` del engine
+# (engine.py, tools/orchestrator.py, telegram_bot.py, ...) no tenía handler
+# propio y caía por debajo del umbral del "last resort" handler de Python
+# (solo WARNING+) — se perdían en silencio. stdout/stderr del proceso ya
+# los captura el Hub a logs/agent.log (ver agent_process.py), así que basta
+# con apuntar el logging ahí.
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -77,6 +86,9 @@ async def lifespan(app: FastAPI):
     if config.get("llm.provider") == "ollama":
         from llm.ollama import OllamaAdapter
         asyncio.create_task(OllamaAdapter().warmup())
+    if config.get("channels.telegram.enabled"):
+        from telegram_bot import run_telegram_polling
+        asyncio.create_task(run_telegram_polling())
     yield
 
 
