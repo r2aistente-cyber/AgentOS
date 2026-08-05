@@ -233,14 +233,18 @@ alguna vez apareció como pendiente en v2.0 ya está hecho.
   el Hub corra como servicio ahí también, no solo `bash Iniciar-R2Hub.sh` manual
 - [ ] Frontend: campo de `channels.telegram.{bot_token,allowed_users}` en el
   wizard/`AgentDetail` (hoy funciona pero requiere editar `config.yaml` a mano)
-- [ ] **`hub/requirements.txt` tiene pins que no coinciden con lo instalado
-  de verdad** — descubierto 2026-08-04 en esta máquina: el venv real corre
-  `pydantic 2.14.0a1`/`fastapi 0.139.2`, pero el archivo pide
-  `pydantic==2.8.2`/`fastapi==0.115.0`. Esos pins viejos no tienen wheel
-  para Python 3.14 y forzar su instalación falla intentando compilar
-  `pydantic-core` desde código fuente (bloqueado además por una política de
-  Application Control en esta PC). No se tocó — el venv actual sigue sano —
-  pero una reinstalación desde cero en esta máquina, hoy, se rompería.
+- [x] **`hub/requirements.txt` — pins arreglados (2026-08-05).** Estaban
+  desalineados de lo realmente instalado (`pydantic==2.8.2` pedido vs
+  `2.14.0a1` corriendo de verdad) y las versiones viejas no tienen wheel
+  para Python 3.14, forzando una compilación de `pydantic-core` desde
+  código fuente que fallaba acá (política de Application Control). Todos
+  los pins exactos actualizados a lo que de verdad corre y está probado en
+  esta máquina; `chromadb`/`sentence-transformers`/`mcp` quedan como estaban
+  (`>=`, nunca estuvieron desalineados). `pydantic==2.14.0a1` es a
+  propósito una prerelease — no existe todavía una 2.x estable con wheel
+  cp314; el comentario en el archivo lo explica. **Verificado con una
+  instalación real desde cero** (venv nuevo, no solo "ya estaba
+  satisfecho"): descarga, instala e importa todo sin compilar nada.
 
 ---
 

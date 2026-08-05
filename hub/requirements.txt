@@ -1,17 +1,27 @@
-fastapi==0.115.0
-uvicorn[standard]==0.30.6
-httpx==0.27.2
-pydantic==2.8.2
-PyYAML==6.0.2
-python-multipart==0.0.9
-psutil==5.9.8
+# Pins actualizados 2026-08-05 a las versiones realmente instaladas y
+# probadas en esta máquina (Python 3.14) -- las anteriores (fastapi==0.115.0,
+# pydantic==2.8.2, etc., de mediados de 2024) no tienen wheel para cp314 y
+# forzaban a pip a compilar pydantic-core desde código fuente, lo que fallaba
+# acá por una política de Application Control de Windows. Ver SPRINTS.md
+# Sprint 11 para el detalle del hallazgo.
+fastapi==0.139.2
+uvicorn[standard]==0.51.0
+httpx==0.28.1
+# pydantic 2.14 todavía no tiene release estable con wheel para Python 3.14
+# -- esta prerelease (a1) es la que de verdad corre acá. Si en algún momento
+# sale 2.14.0 estable (o cualquier 2.x posterior con wheel cp314), preferir
+# esa por encima de esta prerelease.
+pydantic==2.14.0a1
+PyYAML==6.0.3
+python-multipart==0.0.32
+psutil==7.2.2
 # Dependencias que hereda cada agente (engine template)
-aiosqlite==0.20.0
-beautifulsoup4==4.12.3
-duckduckgo-search==6.3.0
+aiosqlite==0.22.1
+beautifulsoup4==4.15.0
+duckduckgo-search==8.1.1
 # Procesamiento de adjuntos
-pypdf==4.3.1
-python-docx==1.1.2
+pypdf==6.14.2
+python-docx==1.2.0
 openpyxl==3.1.5
 # RAG
 chromadb>=0.5.0
