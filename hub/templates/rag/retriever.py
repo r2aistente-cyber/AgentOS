@@ -8,6 +8,14 @@ import agent_config as config
 TOP_K = 5
 MAX_CHARS = 6000
 
+# Umbral mínimo de similitud coseno real para considerar un chunk "relevante".
+# Calibrado a mano 2026-08-06 (bug real: R2 reportaba "no puedo conectarme a
+# internet" — ver abajo por qué). Configurable por agente vía `rag.min_similarity`
+# porque el rango de similitud útil depende del modelo de embeddings y del
+# contenido indexado (ver comentario en indexer.py sobre discriminación pobre
+# en español).
+_MIN_SIMILARITY = config.get("rag.min_similarity", 0.25)
+
 # Ver indexer.py — DEBE ser el mismo modelo que se usó para indexar
 # (comparten espacio de embeddings), por eso ambos leen la misma config key.
 _EMBEDDING_MODEL = config.get("rag.embedding_model", "paraphrase-multilingual-MiniLM-L12-v2")
@@ -79,8 +87,22 @@ def retrieve(query: str) -> str:
         for doc, meta, dist in zip(docs, metas, distances):
             if total_chars >= MAX_CHARS:
                 break
-            similarity = round(1 - dist / 2, 2)
-            if similarity < 0.15:
+            # ChromaDB con hnsw:space="cosine" (ver indexer.py) devuelve
+            # dist = 1 - similitud_coseno (rango 0-2), así que la similitud
+            # real es `1 - dist`, NO `1 - dist/2` (fórmula previa, bug
+            # confirmado 2026-08-06): esa fórmula infla cualquier resultado a
+            # ~0.5-0.6 sin importar la relevancia real (verificado: una query
+            # totalmente ajena como "capital de Mongolia" daba dist≈0.9 →
+            # similitud real ≈0.1, pero la fórmula vieja la mostraba como
+            # ≈0.55, muy por encima del umbral 0.15 de entonces). Efecto en
+            # cadena: engine.py trata cualquier retrieve() no-vacío como
+            # "encontré contexto" y le saca search_web/fetch_url al LLM para
+            # ese turno — el RAG casi nunca filtraba nada, así que R2 perdía
+            # sus tools de internet en casi cada mensaje y terminaba
+            # reportando (con razón, desde su POV) que no podía buscar en la
+            # web.
+            similarity = round(1 - dist, 2)
+            if similarity < _MIN_SIMILARITY:
                 continue
             source = Path(meta.get("source", "")).name
             snippet = doc[:MAX_CHARS - total_chars].strip()
