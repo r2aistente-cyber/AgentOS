@@ -59,13 +59,23 @@ def all_tools() -> list[ToolDef]:
 
 
 def tools_for_llm(allowed: list[str] | None = None, denied: list[str] | None = None) -> list[dict]:
-    """Formato OpenAI/Ollama para el payload del LLM."""
+    """Formato OpenAI/Ollama para el payload del LLM.
+
+    `allowed=None` (nunca lo pasa el caller actual, pero por si acaso) se
+    trata como sin restricción, igual que `["*"]`. `allowed=[]` es
+    DELIBERADAMENTE distinto: significa "ninguna tool" (agente sin tools,
+    ej. un modelo de Ollama sin soporte de function calling) -- antes,
+    `if allowed and ...` trataba la lista vacía como falsy y caía en "sin
+    restricción", el resultado opuesto al que cualquiera esperaría de un
+    allow-list vacío.
+    """
+    allowed = ["*"] if allowed is None else allowed
     denied = denied or []
     out = []
     for t in _REGISTRY.values():
         if t.name in denied:
             continue
-        if allowed and allowed != ["*"] and "*" not in allowed and t.name not in allowed:
+        if "*" not in allowed and t.name not in allowed:
             continue
         out.append({
             "type": "function",
