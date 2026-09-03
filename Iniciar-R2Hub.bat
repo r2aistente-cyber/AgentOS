@@ -3,7 +3,7 @@ title R2 Hub - AgentOS
 cd /d "%~dp0"
 set "REPO=%~dp0"
 set "REPO=%REPO:~0,-1%"
-set "VENV=%REPO%\backend\.venv"
+set "VENV=%REPO%\.venv"
 set "AGENTOS_HOME=%USERPROFILE%\AgentOS"
 if not exist "%AGENTOS_HOME%\logs" mkdir "%AGENTOS_HOME%\logs"
 

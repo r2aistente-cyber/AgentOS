@@ -79,7 +79,7 @@ Configuration is two-level: `config.yaml` for the Hub, and a `config.yaml` insid
 pytest -q
 ```
 
-~300 automated tests covering the Hub API, the agent manager, the engine, the tool sandbox, RAG, export/import and the template. See [pytest.ini](pytest.ini).
+~340 automated tests covering the Hub API, the agent manager, the engine, the tool sandbox, RAG, export/import and the template. See [pytest.ini](pytest.ini).
 
 ---
 
@@ -93,7 +93,8 @@ pytest -q
 | `frontend/` | Vite + React UI (the live one) |
 | `desktop_shell.py` | pywebview window that hosts the UI |
 | `tests/` | Test suite |
-| `docs/` | Project site (GitHub Pages) |
+| `examples/` | Sample layout for an agent's knowledge base |
+| `docs/` | Project site (GitHub Pages); `docs/vision/` holds forward-looking docs |
 | `desktop/` | Early Tauri prototype — **not** the current UI |
 
 ---
@@ -107,8 +108,8 @@ Python · FastAPI · Uvicorn · Pydantic · SQLite (aiosqlite) · ChromaDB · se
 ## Status & scope
 
 - Designed for **single-machine or trusted-LAN** use. Set `hub.token` to require auth on the Hub API.
-- A packaged desktop installer is **planned, not shipped** — the `desktop/` Tauri app is an early prototype; the current way to run AgentOS is the scripts above.
-- The design docs ([CONCEPTO.md](CONCEPTO.md), [DESIGN.md](DESIGN.md), [APP.md](APP.md), [EXPORT.md](EXPORT.md)) describe both what exists and where it's headed — this README is the accurate picture of the current state.
+- A packaged desktop installer is **planned, not shipped** — the `desktop/` Tauri app is an early prototype; the current way to run AgentOS is the scripts above. Forward-looking docs live in [`docs/vision/`](docs/vision/).
+- The design docs ([CONCEPTO.md](CONCEPTO.md), [DESIGN.md](DESIGN.md), [EXPORT.md](EXPORT.md), [INTEGRATION.md](INTEGRATION.md)) describe the architecture and features; this README is the accurate picture of the current state.
 
 ## License
 

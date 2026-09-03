@@ -3,7 +3,7 @@
 set -e
 
 REPO="$(cd "$(dirname "$0")" && pwd)"
-VENV="$REPO/backend/.venv"
+VENV="$REPO/.venv"
 AGENTOS_HOME="$HOME/AgentOS"
 
 echo ""
