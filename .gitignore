@@ -1,13 +1,25 @@
+# Python
 .venv/
+venv/
 __pycache__/
 *.pyc
 *.pyo
+*.egg-info/
 .pytest_cache/
+
+# Node / frontend
+node_modules/
+.vite/
+frontend/dist/
+dist/
+
+# Data & secrets (never commit)
+.env
 *.db
 *.sqlite
-.env
 knowledge/
-venv/
-node_modules/
-*.egg-info/
-.vite/
+
+# Logs & OS cruft
+*.log
+.DS_Store
+Thumbs.db
