@@ -106,6 +106,15 @@ class ClaudeCliAdapter(LLMAdapter):
         async with httpx.AsyncClient(timeout=120) as client:
             for attempt in range(4):  # 1 intento inicial + 3 reintentos
                 r = await client.post(_API_URL, headers=self._headers(), json=payload)
+                if r.status_code == 400 and "temperature" in r.text and "temperature" in payload:
+                    # Algunos modelos (ej. la familia "5") ya no aceptan
+                    # `temperature` en absoluto — verificado en vivo 2026-09-07
+                    # contra claude-sonnet-5 vía OAuth: "`temperature` is
+                    # deprecated for this model". Reintenta sin el campo en
+                    # vez de fallar toda la conversación por un parámetro
+                    # opcional.
+                    payload.pop("temperature")
+                    continue
                 if r.status_code != 429 or attempt == 3:
                     break
                 wait = max(int(r.headers.get("retry-after", 0)), _RETRY_WAITS[attempt])

@@ -31,6 +31,33 @@ interface Ctx {
   limit: number
 }
 
+// Detecta URLs de imagen "sueltas" (una por línea) en el texto de un mensaje
+// y las renderiza como <img> en vez de como texto plano — usado por agentes
+// que envían fotos/gifs (ver tools/base_tools/fitness_tools.py de R2 Trainer).
+const IMAGE_URL_RE = /^https?:\/\/\S+\.(?:png|jpe?g|webp|gif)(?:\?\S*)?$/i
+
+function MessageContent({ text }: { text: string }) {
+  const lines = text.split('\n')
+  return (
+    <>
+      {lines.map((line, i) =>
+        IMAGE_URL_RE.test(line.trim()) ? (
+          <img
+            key={i}
+            src={line.trim()}
+            alt="imagen enviada por el agente"
+            className="my-1 max-h-64 rounded-lg"
+          />
+        ) : (
+          <p key={i} className="whitespace-pre-wrap">
+            {line}
+          </p>
+        ),
+      )}
+    </>
+  )
+}
+
 export default function ChatView({ agent: initialAgent, onBack }: Props) {
   const [agent, setAgent] = useState<AgentInfo>(initialAgent)
   const [messages, setMessages] = useState<Msg[]>([])
@@ -362,7 +389,7 @@ export default function ChatView({ agent: initialAgent, onBack }: Props) {
                   : 'bg-slate-800 text-slate-100'
               }`}
             >
-              {m.content && <p className="whitespace-pre-wrap">{m.content}</p>}
+              {m.content && <MessageContent text={m.content} />}
               {m.attachments && m.attachments.length > 0 && (
                 <div className="mt-1 flex flex-wrap gap-1">
                   {m.attachments.map((f) => (
