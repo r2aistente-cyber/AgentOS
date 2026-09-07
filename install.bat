@@ -10,7 +10,7 @@ echo.
 
 set "REPO=%~dp0"
 set "REPO=%REPO:~0,-1%"
-set "VENV=%REPO%\backend\.venv"
+set "VENV=%REPO%\.venv"
 set "AGENTOS_HOME=%USERPROFILE%\AgentOS"
 
 :: ── Verificar Python 3.11+ ───────────────────────────────────────────────────

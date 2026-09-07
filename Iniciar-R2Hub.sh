@@ -9,7 +9,7 @@
 set -e
 
 REPO="$(cd "$(dirname "$0")" && pwd)"
-VENV="$REPO/backend/.venv"
+VENV="$REPO/.venv"
 AGENTOS_HOME="$HOME/AgentOS"
 LOGS="$AGENTOS_HOME/logs"
 mkdir -p "$LOGS"
