@@ -3,8 +3,10 @@ reutilizando el token OAuth que OpenClaw ya guardó en su auth store.
 
 - Endpoint: https://chatgpt.com/backend-api/codex/responses  (API "Responses" de OpenAI,
   la misma que usa Codex CLI). Requiere stream=true.
-- El token vive en el sqlite de OpenClaw
-  (~/.openclaw/agents/main/agent/openclaw-agent.sqlite, tabla auth_profile_store).
+- El token vive en el sqlite de OpenClaw. La ubicación cambió con 2026.9.x:
+  nuevo:  ~/.openclaw/state/openclaw.sqlite  (config_machine_state / authProfiles.store)
+  viejo:  ~/.openclaw/agents/main/agent/openclaw-agent.sqlite  (auth_profile_store)
+  _TokenStore detecta automáticamente cuál existe.
   OpenClaw lo mantiene fresco cuando hace sus propias llamadas; este adapter además
   lo refresca por su cuenta con el refresh_token si está por vencer, y reescribe
   el sqlite para que ambos lados queden sincronizados.
@@ -37,36 +39,72 @@ _REFRESH_MARGIN_S = 120  # refresca si vence en menos de esto
 
 
 class _TokenStore:
-    """Lee/refresca/reescribe el perfil OAuth de OpenAI en el sqlite de OpenClaw."""
+    """Lee/refresca/reescribe el perfil OAuth de OpenAI que guarda OpenClaw.
 
-    def __init__(self, db_path: str) -> None:
-        self._db = os.path.expanduser(db_path)
+    OpenClaw movió el auth store en 2026.9.x:
+      viejo:  <agentDir>/openclaw-agent.sqlite  ->  auth_profile_store[store_key='primary'].store_json
+      nuevo:  ~/.openclaw/state/openclaw.sqlite  ->  config_machine_state[state_key='authProfiles.store'].value_json
+    La estructura interna del JSON ({"profiles": {...}}) es la misma en ambos.
+    Se detecta automáticamente cuál existe; `openclaw_db` en el config sólo
+    sirve como pista para localizar el layout viejo.
+    """
+
+    # (db_path, tabla, columna_json, columna_key, valor_key, columna_ts)
+    _LAYOUTS = [
+        ("~/.openclaw/state/openclaw.sqlite", "config_machine_state",
+         "value_json", "state_key", "authProfiles.store", "updated_at_ms"),
+    ]
+
+    def __init__(self, db_path_hint: str) -> None:
+        hint = os.path.expanduser(db_path_hint)
+        self._candidates = list(self._LAYOUTS)
+        if hint:
+            self._candidates.append(
+                (hint, "auth_profile_store", "store_json", "store_key", "primary", "updated_at")
+            )
+        self._active = None  # el layout que funcionó, para _save
 
     def _load(self) -> tuple[dict, str]:
-        con = sqlite3.connect(self._db, timeout=10)
-        try:
-            row = con.execute(
-                "SELECT store_json FROM auth_profile_store WHERE store_key='primary'"
-            ).fetchone()
-        finally:
-            con.close()
-        if not row:
-            raise RuntimeError("OpenClaw auth store sin perfil 'primary' — corre "
-                               "`openclaw models auth login --provider openai` primero")
-        store = json.loads(row[0])
-        profiles = store.get("profiles", {})
-        key = next((k for k in profiles if k.startswith("openai:")), None)
-        if not key:
-            raise RuntimeError("OpenClaw no tiene un perfil de auth 'openai:' — "
-                               "corre `openclaw models auth login --provider openai`")
-        return store, key
+        last_err = "ninguna ubicación de auth store encontrada"
+        for lay in self._candidates:
+            db, tbl, jcol, kcol, kval, _ = lay
+            db = os.path.expanduser(db)
+            if not os.path.exists(db):
+                continue
+            try:
+                con = sqlite3.connect(db, timeout=10)
+                try:
+                    row = con.execute(
+                        f"SELECT {jcol} FROM {tbl} WHERE {kcol}=?", (kval,)
+                    ).fetchone()
+                finally:
+                    con.close()
+            except sqlite3.OperationalError as e:
+                last_err = str(e)
+                continue
+            if not row or not row[0]:
+                continue
+            store = json.loads(row[0])
+            profiles = store.get("profiles", {})
+            key = next((k for k in profiles if k.startswith("openai:")), None)
+            if not key:
+                continue
+            self._active = lay
+            return store, key
+        raise RuntimeError(
+            "OpenClaw no tiene un perfil de auth 'openai:' en ninguna ubicación conocida "
+            f"({last_err}) — corre `openclaw models auth login --provider openai`")
 
     def _save(self, store: dict) -> None:
-        con = sqlite3.connect(self._db, timeout=10)
+        if not self._active:
+            return
+        db, tbl, jcol, kcol, kval, tscol = self._active
+        db = os.path.expanduser(db)
+        con = sqlite3.connect(db, timeout=10)
         try:
             con.execute(
-                "UPDATE auth_profile_store SET store_json=?, updated_at=? WHERE store_key='primary'",
-                (json.dumps(store), int(time.time() * 1000)),
+                f"UPDATE {tbl} SET {jcol}=?, {tscol}=? WHERE {kcol}=?",
+                (json.dumps(store), int(time.time() * 1000), kval),
             )
             con.commit()
         finally:
