@@ -54,6 +54,9 @@ def _make_adapter(provider: str, model: str | None, api_key: str | None) -> LLMA
     if provider == "claude-cli":
         from llm.claude_cli import ClaudeCliAdapter
         return ClaudeCliAdapter(model=model)
+    if provider == "openclaw":
+        from llm.openclaw import OpenClawAdapter
+        return OpenClawAdapter(model=model)
     if provider == "mock":
         from llm.mock import MockAdapter
         return MockAdapter()
