@@ -48,7 +48,7 @@ def _make_adapter(provider: str, model: str | None, api_key: str | None) -> LLMA
     if provider == "anthropic":
         from llm.anthropic import AnthropicAdapter
         return AnthropicAdapter(model=model, api_key=api_key)
-    if provider in ("openai", "opencode", "opencode-go", "custom"):
+    if provider in ("openai", "opencode", "opencode-go", "openrouter", "custom"):
         from llm.openai_compat import OpenAICompatAdapter
         return OpenAICompatAdapter(provider, model=model, api_key=api_key)
     if provider == "claude-cli":

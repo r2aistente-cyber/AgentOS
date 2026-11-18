@@ -19,6 +19,7 @@ _PROVIDERS = {
     "openai":      ("https://api.openai.com/v1", "openai_key"),
     "opencode":    ("https://opencode.ai/zen/v1", "opencode_key"),
     "opencode-go": ("https://opencode.ai/zen/go/v1", "opencode_key"),
+    "openrouter":  ("https://openrouter.ai/api/v1", "openrouter_key"),
 }
 
 # Detecta el bloque DSML completo de tool_calls de DeepSeek
@@ -88,7 +89,8 @@ class OpenAICompatAdapter(LLMAdapter):
         custom_host = config.get("llm.host") if provider not in _PROVIDERS else None
         self._base = (custom_host or base or "https://api.openai.com/v1").rstrip("/")
         raw_model = model or config.get("llm.model", "gpt-4o-mini")
-        if raw_model and "/" in raw_model:
+        # Los ids de OpenRouter ("deepseek/deepseek-chat-v3.1") necesitan conservar el vendor.
+        if raw_model and "/" in raw_model and provider != "openrouter":
             raw_model = raw_model.split("/", 1)[1]
         self._model = raw_model
         self._temperature = config.get("llm.temperature", 0.7)
