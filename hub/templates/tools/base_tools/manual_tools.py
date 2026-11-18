@@ -1,8 +1,10 @@
 """Busqueda en los manuales oficiales de DaVinci Resolve (indice local con cita de pagina).
 
-El indice y el codigo de busqueda viven aparte (carpeta `manuales_resolve.dir` del config,
-por defecto ~/resolve-agente) porque necesitan torch/sentence-transformers: aqui solo se
-invoca su CLI con el python de ese entorno y se lee el JSON.
+El indice y el codigo de busqueda viven en una carpeta aparte porque necesitan
+torch/sentence-transformers: aqui solo se invoca su CLI con el python de su propio entorno
+(.venv) y se lee el JSON. La carpeta es, en orden: `manuales_resolve.dir` del config (si es
+relativa, respecto a la carpeta del agente), `<agente>/manuales_resolve`, o ~/resolve-agente.
+Asi la carpeta del agente se puede copiar a otra maquina y recrear el entorno con instalar.*
 """
 from __future__ import annotations
 
@@ -19,7 +21,11 @@ _TIMEOUT_S = 120  # la primera consulta carga el modelo de embeddings
 
 def _dir_manuales() -> Path:
     cfg = (config.get("manuales_resolve", {}) or {}).get("dir")
-    return Path(cfg).expanduser() if cfg else Path.home() / "resolve-agente"
+    if cfg:
+        p = Path(cfg).expanduser()
+        return p if p.is_absolute() else config.AGENT_DIR / p
+    propia = config.AGENT_DIR / "manuales_resolve"
+    return propia if propia.exists() else Path.home() / "resolve-agente"
 
 
 def _python_de(base: Path) -> Path:
