@@ -12,8 +12,8 @@
     "initiative": "reactivo"
   },
   "model": {
-    "provider": "claude-cli",
-    "model": "claude-sonnet-5",
+    "provider": "openrouter",
+    "model": "deepseek/deepseek-v4-flash",
     "temperature": 0.2
   },
   "skills": [],
