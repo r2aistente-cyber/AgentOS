@@ -93,6 +93,8 @@ if %errorlevel% neq 0 (
 :: ── Crear acceso directo en el escritorio ───────────────────────────────────
 echo [6/6] Creando acceso directo en el escritorio...
 :: TargetPath apunta a powershell -WindowStyle Hidden ejecutando
+:: -ExecutionPolicy Bypass: sin el, Windows (politica Restricted por defecto) bloquea el .ps1 y el
+:: icono no hace nada, sin mostrar error porque la ventana va oculta.
 :: Iniciar-R2Hub-Oculto.ps1 (no al .bat directo) para que el arranque quede
 :: totalmente oculto -- Iniciar-R2Hub.bat ya lanza Hub/frontend ocultos por
 :: su cuenta, pero eso no sirve de nada si la consola del .bat en sí sigue
@@ -103,7 +105,7 @@ powershell -NoProfile -Command ^
   "$ws=New-Object -ComObject WScript.Shell; ^
    $s=$ws.CreateShortcut('$env:USERPROFILE\Desktop\R2 Hub.lnk'); ^
    $s.TargetPath='%WINDIR%\System32\WindowsPowerShell\v1.0\powershell.exe'; ^
-   $s.Arguments='-NoProfile -WindowStyle Hidden -File ""%REPO%\Iniciar-R2Hub-Oculto.ps1""'; ^
+   $s.Arguments='-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""%REPO%\Iniciar-R2Hub-Oculto.ps1""'; ^
    $s.WorkingDirectory='%REPO%'; ^
    $s.Description='R2 Hub / AgentOS'; ^
    $s.IconLocation='%REPO%\r2hub.ico,0'; ^
